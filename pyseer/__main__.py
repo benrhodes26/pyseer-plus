@@ -168,6 +168,11 @@ def get_options():
                       default=10,
                       help='Number of folds cross-validation to perform '
                            '[Default: 10]')
+    other.add_argument('--no-standardise',
+                       action='store_true',
+                       default=False,
+                       help='Do not standardise variants when fitting enet [Default: apply standardisation to ]')
+    
 
     filtering = parser.add_argument_group('Filtering options')
     filtering.add_argument('--min-af',
@@ -299,7 +304,6 @@ def main():
 
     # silence warnings
     warnings.filterwarnings('ignore')
-    #
 
     # reading phenotypes
     p = load_phenotypes(options.phenotypes, options.phenotype_column)
@@ -657,7 +661,7 @@ def main():
             enet_betas = fit_enet(p, all_vars, cov, weights,
                                   options.continuous, options.alpha,
                                   lineage_dict_full, fold_ids, options.n_folds,
-                                  options.cpu)
+                                  options.cpu, not options.no_standardise)
 
             # print those with passing indices, along with coefficient
             sys.stderr.write("Finding and printing selected variants\n")
