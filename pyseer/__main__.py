@@ -174,7 +174,7 @@ def get_options():
                       default=10,
                       help='Number of folds cross-validation to perform '
                            '[Default: 10]')
-    other.add_argument('--no-standardise',
+    wg.add_argument('--no-standardise',
                        action='store_true',
                        default=False,
                        help='Do not standardise variants when fitting enet [Default: apply standardisation to ]')
