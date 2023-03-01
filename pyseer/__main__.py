@@ -163,6 +163,12 @@ def get_options():
                       default=0.0069,
                       help='Set the mixing between l1 and l2 penalties '
                            '[Default: 0.0069]')
+    wg.add_argument('--lambda_se',
+                      type=int,
+                      default=None,
+                      help='Choose the largest value of lambda such that error is \
+                            within this many standard errors of the minimum'
+                           '[Default: None i.e choose lambda to minimise the error]')
     wg.add_argument('--n-folds',
                       type=int,
                       default=10,
@@ -172,7 +178,6 @@ def get_options():
                        action='store_true',
                        default=False,
                        help='Do not standardise variants when fitting enet [Default: apply standardisation to ]')
-    
 
     filtering = parser.add_argument_group('Filtering options')
     filtering.add_argument('--min-af',
@@ -661,7 +666,7 @@ def main():
             enet_betas = fit_enet(p, all_vars, cov, weights,
                                   options.continuous, options.alpha,
                                   lineage_dict_full, fold_ids, options.n_folds,
-                                  options.cpu, not options.no_standardise)
+                                  options.cpu, not options.no_standardise, options.lambda_se)
 
             # print those with passing indices, along with coefficient
             sys.stderr.write("Finding and printing selected variants\n")

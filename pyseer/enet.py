@@ -119,7 +119,7 @@ def load_all_vars(var_type, p, burden, burden_regions, infile,
 
 def fit_enet(p, variants, covariates, weights, continuous, alpha,
              lineage_dict = None, fold_ids = None, n_folds = 10, n_cpus = 1,
-             standardise=True):
+             standardise=True, lambda_se=None):
     """Fit an elastic net model to a set of variants. Prints
     information about model fit and prediction quality to STDERR
 
@@ -156,7 +156,7 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
             Set to -1 to use all available
 
             [default = 1]
-        standardise_variants (bool)
+        standardise (bool)
             Whether to standardise the variants before fitting
 
             [default = False]
@@ -183,19 +183,32 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
                             standardize = standardise)
 
     # Extract best lambda and predict class labels/values
-    betas = cvglmnetCoef(enet_fit, s = 'lambda_min')
-    best_lambda_idx = np.argmin(enet_fit['cvm'])
-    predictions, R2 = enet_predict(enet_fit, variants, continuous, p.values)
+    cvm, cvsd = enet_fit['cvm'], enet_fit['cvsd']
+    best_lambda_idx = np.argmin(cvm)
+    if lambda_se:
+        best_lambda_idx = bisect_desc_unsorted(cvm[:best_lambda_idx+1], 
+                                    cvm[best_lambda_idx] + (lambda_se * (cvsd[best_lambda_idx])))
+    best_lambda = enet_fit['lambdau'][best_lambda_idx]
+
+    betas = cvglmnetCoef(enet_fit, s = best_lambda)
+    predictions, R2, accuracy = enet_predict(enet_fit, variants, continuous, p.values, best_lambda)
 
     # Write some summary stats
     # R^2 = 1 - sum((yi_obs - yi_predicted)^2) /sum((yi_obs - yi_mean)^2)
-    sys.stderr.write("Best penalty (lambda) from cross-validation: " +
-                     '%.2E' % Decimal(enet_fit['lambda_min'][0]) + "\n")
+    method = "cross-validation "
+    if lambda_se:
+        method = str(lambda_se) + "se " + method
+    sys.stderr.write("Best penalty (lambda) from " + method +
+                     '%.2E' % Decimal(best_lambda) + "\n")
     if not continuous:
-        sys.stderr.write("Best model deviance from cross-validation: " +
-                         '%.3f' % Decimal(enet_fit['cvm'][best_lambda_idx]) +
-                         " ± " + '%.2E' % Decimal(enet_fit['cvsd'][best_lambda_idx]) + "\n")
-    sys.stderr.write("Best R^2 from cross-validation: " + '%.3f' % Decimal(R2) + "\n")
+        sys.stderr.write("Best model deviance from "  + method + 
+                         '%.3f' % Decimal(cvm[best_lambda_idx]) +
+                         " ± " + '%.2E' % Decimal(cvsd[best_lambda_idx]) + "\n")
+        sys.stderr.write("Classification accuracy: (computed using entire dataset for training, \
+                     and hence NOT cross-validated): " + '%.2E' % Decimal(accuracy) + "\n")
+
+    sys.stderr.write("R^2 (computed using entire dataset for training, \
+                     and hence NOT cross-validated): " + '%.3f' % Decimal(R2) + "\n")
 
     # Report R2 for each fold (strain/clade)
     if fold_ids is not None:
@@ -206,7 +219,15 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
     return(betas.reshape(-1,))
 
 
-def enet_predict(enet_fit, variants, continuous, responses = None):
+def bisect_desc_unsorted(a, x):
+    """Find largest idx i of list a such that, a[:i] > x."""
+    idx = 0
+    while a[idx] > x:
+        idx +=1
+    return idx
+
+
+def enet_predict(enet_fit, variants, continuous, responses = None, lamb = "lambda_min"):
     """Use a fitted elastic net model to make predictions about
     new observations. Returns accuracy if true responses known
 
@@ -222,7 +243,8 @@ def enet_predict(enet_fit, variants, continuous, responses = None):
             True phenotypes to calculate R^2 with
 
             [default = None]
-
+        lamb (float)
+            The lambda value to use for prediction
     Returns:
         preds (numpy.array)
             Predicted phenotype for each input sample in variants
@@ -232,9 +254,11 @@ def enet_predict(enet_fit, variants, continuous, responses = None):
     """
     # Extract best lambda and predict class labels/values
     if continuous:
-        preds = np.array(cvglmnetPredict(enet_fit, newx=variants, s='lambda_min', ptype='link'))
+        preds = np.array(cvglmnetPredict(enet_fit, newx=variants, s=lamb, ptype='link'))
+        accuracy = None
     else:
-        preds = cvglmnetPredict(enet_fit, newx=variants, s='lambda_min', ptype='class')
+        preds = cvglmnetPredict(enet_fit, newx=variants, s=lamb, ptype='class')
+        accuracy = (preds == responses).mean()
 
     # R^2 = 1 - sum((yi_obs - yi_predicted)^2) /sum((yi_obs - yi_mean)^2)
     if responses is not None and responses.shape[0] == variants.shape[0]:
@@ -247,7 +271,7 @@ def enet_predict(enet_fit, variants, continuous, responses = None):
     else:
         R2 = None
 
-    return(preds, R2)
+    return(preds, R2, accuracy)
 
 
 def write_lineage_predictions(true_values, predictions, fold_ids,
