@@ -500,6 +500,7 @@ def parse_args():
     parser.add_argument('--num_genes_label', type=int, default=40, help="number of genes in scatter plot to label'")
     parser.add_argument('--include_unmapped', type=int, default=40, help="number of genes in scatter plot to label'")
     parser.add_argument('--exclude_unmapped', action='store_true', default=False, help='Exclude variants that are not mapped to a gene')
+    # parser.add_argument('--pvalue_type', type=str, default="un", help="directory to save output figures'")
 
     return parser.parse_args()
 
