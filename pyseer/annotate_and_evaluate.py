@@ -230,8 +230,8 @@ def plot_gene_scatter_summaries(all_dfs, method_names, genes_of_interest, save_d
             adjust_text(a, ax=ax, arrowprops=dict(arrowstyle="-", color='k', lw=0.5))
         print("done!")
     except ImportError:
-        print("WARNING: text annotations on gene summary figure may be hard to read - \
-              please install the adjustText package to ameliorate this")
+        print("WARNING: text annotations on gene summary figure may be hard to read -" \
+              "please install the adjustText package to ameliorate this")
         pass
 
     name = f"{plot_name}_gene_summaries_v1"
@@ -242,7 +242,7 @@ def plot_gene_cf_curves(annotated_ranked_hits, max_list_len=None, plot_name="",
                         save_dir="", genes=('pbpX', 'penA', 'pbp1A')):
 
     # TODO: need to adjust for a list of dfs and metric_names as input
-    raise NotImplemented
+    raise NotImplementedError
     fig, axs = subplots(1, 4, " ".join(genes) + " hits", "# variants checked", height=8)
     plotting_info = list(zip(*get_metric_plot_info()))
     for col, name, c, l, m in plotting_info:
@@ -498,7 +498,6 @@ def parse_args():
     parser.add_argument('--causal_vars', nargs='+', default=[], help="list of causal vars (for simulated phenotypes)")
     parser.add_argument('--ggcaller_xls', type=str, default=os.getcwd(), help="directory to save output figures'")
     parser.add_argument('--num_genes_label', type=int, default=40, help="number of genes in scatter plot to label'")
-    parser.add_argument('--include_unmapped', type=int, default=40, help="number of genes in scatter plot to label'")
     parser.add_argument('--exclude_unmapped', action='store_true', default=False, help='Exclude variants that are not mapped to a gene')
     # parser.add_argument('--pvalue_type', type=str, default="un", help="directory to save output figures'")
 
