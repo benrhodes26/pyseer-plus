@@ -190,7 +190,7 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
                                     cvm[best_lambda_idx] + (lambda_se * (cvsd[best_lambda_idx])))
     best_lambda = enet_fit['lambdau'][best_lambda_idx]
 
-    betas = cvglmnetCoef(enet_fit, s = np.array([best_lambda]))
+    betas = cvglmnetCoef(enet_fit, s = np.array([best_lambda], dtype=np.float64))
     predictions, R2, accuracy = enet_predict(enet_fit, variants, continuous, p.values, best_lambda)
 
     # Write some summary stats
@@ -254,10 +254,10 @@ def enet_predict(enet_fit, variants, continuous, responses = None, lamb = "lambd
     """
     # Extract best lambda and predict class labels/values
     if continuous:
-        preds = np.array(cvglmnetPredict(enet_fit, newx=variants, s=np.array([lamb]), ptype='link'))
+        preds = np.array(cvglmnetPredict(enet_fit, newx=variants, s=np.array([lamb], dtype=np.float64), ptype='link'))
         accuracy = None
     else:
-        preds = cvglmnetPredict(enet_fit, newx=variants, s=np.array([lamb]), ptype='class')
+        preds = cvglmnetPredict(enet_fit, newx=variants, s=np.array([lamb], dtype=np.float64), ptype='class')
         accuracy = (preds == responses).mean()
 
     # R^2 = 1 - sum((yi_obs - yi_predicted)^2) /sum((yi_obs - yi_mean)^2)

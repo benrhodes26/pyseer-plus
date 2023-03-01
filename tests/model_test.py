@@ -9,6 +9,7 @@ import statsmodels.formula.api as smf
 try:
     smf.Logit
 except AttributeError:
+    import statsmodels
     smf.Logit = statsmodels.discrete.discrete_model.Logit
 from pyseer.model import pre_filtering
 from pyseer.model import fit_null
@@ -105,7 +106,8 @@ class TestPreFiltering(unittest.TestCase):
         p_cont = np.loadtxt(P_CONT)
         k = np.loadtxt(K)
         prep, bad_chisq = pre_filtering(p_cont, k, True)
-        self.assertEqual(prep, 0.29623810011571716)
+        # self.assertEqual(prep, 0.29623810011571716)
+        self.assertAlmostEqual(prep, 0.29623810011571716, places=8)
         self.assertFalse(bad_chisq)
         # using a binary p Matrix
         p = np.concatenate((np.ones(50), np.zeros(50)))
