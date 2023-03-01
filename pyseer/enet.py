@@ -204,11 +204,13 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
         sys.stderr.write("Best model deviance from "  + method + 
                          '%.3f' % Decimal(cvm[best_lambda_idx]) +
                          " ± " + '%.2E' % Decimal(cvsd[best_lambda_idx]) + "\n")
-        sys.stderr.write("Classification accuracy: (computed using entire dataset for training, \
-                     and hence NOT cross-validated): " + '%.2E' % Decimal(accuracy) + "\n")
+        sys.stderr.write("Classification accuracy: (computed using entire dataset for training, " \
+                         "and hence NOT cross-validated): " + '%.2E' % Decimal(accuracy) + "\n")
+        sys.stderr.write("Baseline accuracy: (achieved by always predicting the most common class, " + \
+                         '%.2E' % Decimal(100 * max(p.values.mean(), 1-p.values.mean())) + "\n")
 
-    sys.stderr.write("R^2 (computed using entire dataset for training, \
-                     and hence NOT cross-validated): " + '%.3f' % Decimal(R2) + "\n")
+    sys.stderr.write("R^2 (computed using entire dataset for training, " \
+                     "and hence NOT cross-validated): " + '%.3f' % Decimal(R2) + "\n")
 
     # Report R2 for each fold (strain/clade)
     if fold_ids is not None:
@@ -258,7 +260,7 @@ def enet_predict(enet_fit, variants, continuous, responses = None, lamb = "lambd
         accuracy = None
     else:
         preds = cvglmnetPredict(enet_fit, newx=variants, s=np.array([lamb], dtype=np.float64), ptype='class')
-        accuracy = (preds == responses).mean()
+        accuracy = 100 * (preds == responses).mean()
 
     # R^2 = 1 - sum((yi_obs - yi_predicted)^2) /sum((yi_obs - yi_mean)^2)
     if responses is not None and responses.shape[0] == variants.shape[0]:
