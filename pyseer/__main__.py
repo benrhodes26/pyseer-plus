@@ -163,7 +163,7 @@ def get_options():
                       default=0.0069,
                       help='Set the mixing between l1 and l2 penalties '
                            '[Default: 0.0069]')
-    wg.add_argument('--lambda_se',
+    wg.add_argument('--lambda-se',
                       type=int,
                       default=None,
                       help='Choose the largest value of lambda such that error is \
