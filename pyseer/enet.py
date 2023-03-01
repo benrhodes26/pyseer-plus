@@ -206,7 +206,7 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
                          " ± " + '%.2E' % Decimal(cvsd[best_lambda_idx]) + "\n")
         sys.stderr.write("Classification accuracy: (computed using entire dataset for training, " \
                          "and hence NOT cross-validated): " + str(accuracy) + "\n")
-        sys.stderr.write("Baseline accuracy: (achieved by always predicting the most common class, " + \
+        sys.stderr.write("Baseline accuracy: (achieved by always predicting the most common class): " + \
                          str(100 * max(p.values.mean(), 1-p.values.mean())) + "\n")
 
     sys.stderr.write("R^2 (computed using entire dataset for training, " \
