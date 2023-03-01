@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 import os
-import sys
 import subprocess
 import numpy as np
 import pandas as pd
@@ -34,22 +33,25 @@ shared_args = [
     "--cpu 2"
 ]
 
-pheno_df = pd.read_csv(args.pheno_file)
+pheno_df = pd.read_csv(args.pheno_file, sep="\t")
+
 for i in range(n_repeats):
     
     out_dir = os.path.join(args.out_dir, str(i))
     os.makedirs(out_dir, exist_ok=True)
 
-    ss_idxs = np.random.choice(range(len(pheno_df)))
-    ss_pheno_df = pheno_df[ss_idxs]
+    ss_idxs = np.random.choice(range(len(pheno_df)), size=int(len(pheno_df)*args.subsample_frac))
+    ss_pheno_df = pheno_df.iloc[ss_idxs]
     pheno_i = os.path.join(out_dir, f"pheno_{i}.tsv")
-    ss_pheno_df.to_csv(pheno_i, sep="\t")
+    ss_pheno_df.to_csv(pheno_i, sep="\t", index=0)
 
     specific_args = [f"--phenotypes {pheno_i}", f"--save-model {out_dir}/model"]
     
-    if args.dryrun:
-        print(" ".join(['pyseer', *shared_args, *specific_args]))
+    out_file = open(os.path.join(out_dir, "unitigs_hits.txt"), 'w')
+    err_file = open(os.path.join(os.path.join(out_dir, "pyseer_err.txt")), 'w')
+    if args.dry_run:
+        out_str = " ".join(['pyseer', *shared_args, *specific_args])
+        print(out_str)
+        subprocess.call(['echo', " ".join(['pyseer', *shared_args, *specific_args])], stdout=out_file, shell=False)
     else:
-        out_file = os.path.join(out_dir, "unitigs_hits.txt")
-        err_file = os.path.join(out_dir, "pyseer_err.txt")
         subprocess.call(['pyseer', *shared_args, *specific_args], stdout=out_file, stderr=err_file, shell=False)
