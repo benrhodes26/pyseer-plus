@@ -40,7 +40,7 @@ for i in range(n_repeats):
     out_dir = os.path.join(args.out_dir, str(i))
     os.makedirs(out_dir, exist_ok=True)
 
-    ss_idxs = np.random.choice(range(len(pheno_df)), size=int(len(pheno_df)*args.subsample_frac))
+    ss_idxs = np.random.choice(range(len(pheno_df)), size=int(len(pheno_df)*args.subsample_frac), replace=False)
     ss_pheno_df = pheno_df.iloc[ss_idxs]
     pheno_i = os.path.join(out_dir, f"pheno_{i}.tsv")
     ss_pheno_df.to_csv(pheno_i, sep="\t", index=0)
