@@ -49,9 +49,9 @@ for i in range(n_repeats):
     
     out_file = open(os.path.join(out_dir, "unitigs_hits.txt"), 'w')
     err_file = open(os.path.join(os.path.join(out_dir, "pyseer_err.txt")), 'w')
-    if args.dry_run:
-        out_str = " ".join(['pyseer', *shared_args, *specific_args])
-        print(out_str)
-        subprocess.call(['echo', " ".join(['pyseer', *shared_args, *specific_args])], stdout=out_file, shell=False)
+    out_str = " ".join(['pyseer', *specific_args, *shared_args])
+    if args.dry_run:    
+        subprocess.call(['echo', " ".join(['pyseer', *specific_args, *shared_args])], stdout=out_file, shell=False)
     else:
-        subprocess.call(['pyseer', *shared_args, *specific_args], stdout=out_file, stderr=err_file, shell=False)
+        subprocess.call(['echo', " ".join(['pyseer', *specific_args, *shared_args])], stdout=err_file, shell=False)
+        subprocess.call(['pyseer', *specific_args, *shared_args], stdout=out_file, stderr=err_file, shell=False)
