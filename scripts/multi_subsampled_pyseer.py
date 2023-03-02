@@ -111,7 +111,7 @@ print("Combining hits into a single file...")
 successes = [i for i in range(n_repeats) if i not in failures]
 all_df = pd.DataFrame(0,
                       index=list(all_variants),
-                      columns=list(df.columns) + ["ss"]
+                      columns=list(df.columns[1:]) + ["ss"]
                       )
 for i in successes:
     hitsfile = os.path.join(args.out_dir, str(i), "unitigs_hits.txt")
