@@ -22,6 +22,7 @@ args = parser.parse_args()
 
 n_repeats = args.n_repeats
 
+#### SHARED ARGUMENTS TO ALL PYSEER SCRIPTS
 shared_args = [
     "--wg=enet",
     "--alpha=0.0069",
@@ -60,7 +61,11 @@ for i in range(n_repeats):
     pheno_i = os.path.join(hitsfile, f"pheno_{i}.tsv")
     ss_pheno_df.to_csv(pheno_i, sep="\t", index=0)
 
-    specific_args = [f"--phenotypes={pheno_i}", f"--save-model={hitsfile}/model"]
+    #### RUN-SPECIFIC ARGUMENTS
+    specific_args = [
+        f"--phenotypes={pheno_i}",
+        f"--save-model={hitsfile}/model"
+        ]
     
     out_file = open(os.path.join(hitsfile, "unitigs_hits.txt"), 'w')
     err_file = open(os.path.join(os.path.join(hitsfile, "pyseer_err.txt")), 'w')
@@ -87,24 +92,33 @@ print("Finished all pyseer jobs!")
 if args.dry_run:
     sys.exit()
 
-print("combining hits into a single file...")
-hitsfile = os.path.join(args.out_dir, "0", "unitigs_hits.txt")
+### combine hits from all runs into a single hit list
+print("Finding all hits across all runs...")
+all_variants = set()
+failures = []
+for i in range(n_repeats):
+    try:
+        hitsfile = os.path.join(args.out_dir, str(i), "unitigs_hits.txt")
+        df = parse_pyseer_hits(hitsfile)
+        all_variants.update(set(df['variant'].values))
+    except Exception as e:
+        failures.append(i)
+        print(f"failed to load {i}th result: ", e)
 
-all_df = parse_pyseer_hits(hitsfile)
-all_df["ss"] = (all_df["absbeta"] != 0).astype(np.float32)
-for i in range(1, n_repeats):
+print(f"Found {len(all_variants)} unique variants across all runs")
+print("Combining hits into a single file...")
 
-    # load dataframe of hits
+successes = [i for i in range(n_repeats) if i not in failures]
+all_df = pd.DataFrame(0,
+                      index=list(all_variants),
+                      columns=list(df.columns) + ["ss"]
+                      )
+for i in successes:
     hitsfile = os.path.join(args.out_dir, str(i), "unitigs_hits.txt")
     df = parse_pyseer_hits(hitsfile)
+    cols = ["absbeta", "-logpval (unadjusted)", "-logpval (lmm-adjusted)"]
+    all_df.loc[df['variant'], cols] += df[cols].values / len(successes)
+    all_df.loc[df['variant'], ["ss"]] += (df[['absbeta']] != 0).values / len(successes)
 
-    all_df["absbeta"] += df["absbeta"]
-    all_df["-logpval (unadjusted)"] += df["-logpval (unadjusted)"]
-    all_df["-logpval (lmm-adjusted)"] += df["-logpval (lmm-adjusted)"]
-    all_df["ss"] += (df["absbeta"] != 0).astype(np.float32)
-
-for col in ["absbeta", "-logpval (unadjusted)", "-logpval (lmm-adjusted)", "ss"]:
-    all_df[col] /= n_repeats
-
-all_df.to_csv(os.path.join(args.out_dir, f"unitigs_hits_ss_{n_repeats}.txt"), sep="\t", index=0)
+all_df.to_csv(os.path.join(args.out_dir, f"unitigs_hits_ss_{n_repeats}.txt"), sep="\t")
 print("Finished.")

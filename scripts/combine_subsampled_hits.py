@@ -15,24 +15,32 @@ args = parser.parse_args()
 
 n_repeats = args.n_repeats
 
-print("combining hits into a single file...")
-hitsfile = os.path.join(args.out_dir, "0", "unitigs_hits.txt")
+print("Finding all hits across all runs...")
+all_variants = set()
+failures = []
+for i in range(n_repeats):
+    try:
+        hitsfile = os.path.join(args.out_dir, str(i), "unitigs_hits.txt")
+        df = parse_pyseer_hits(hitsfile)
+        all_variants.update(set(df['variant'].values))
+    except Exception as e:
+        failures.append(i)
+        print(f"failed to load {i}th result: ", e)
 
-all_df = parse_pyseer_hits(hitsfile)
-all_df["ss"] = (all_df["absbeta"] != 0).astype(np.float32)
-for i in range(1, n_repeats):
+print(f"Found {len(all_variants)} unique variants across all runs")
+print("Combining hits into a single file...")
 
-    # load dataframe of hits
+successes = [i for i in range(n_repeats) if i not in failures]
+all_df = pd.DataFrame(0,
+                      index=list(all_variants),
+                      columns=list(df.columns) + ["ss"]
+                      )
+for i in successes:
     hitsfile = os.path.join(args.out_dir, str(i), "unitigs_hits.txt")
     df = parse_pyseer_hits(hitsfile)
+    cols = ["absbeta", "-logpval (unadjusted)", "-logpval (lmm-adjusted)"]
+    all_df.loc[df['variant'], cols] += df[cols].values / len(successes)
+    all_df.loc[df['variant'], ["ss"]] += (df[['absbeta']] != 0).values / len(successes)
 
-    all_df["absbeta"] += df["absbeta"]
-    all_df["-logpval (unadjusted)"] += df["-logpval (unadjusted)"]
-    all_df["-logpval (lmm-adjusted)"] += df["-logpval (lmm-adjusted)"]
-    all_df["ss"] += (df["absbeta"] != 0).astype(np.float32)
-
-for col in ["absbeta", "-logpval (unadjusted)", "-logpval (lmm-adjusted)", "ss"]:
-    all_df[col] /= n_repeats
-
-all_df.to_csv(os.path.join(args.out_dir, f"unitigs_hits_ss_{n_repeats}.txt"), sep="\t", index=0)
+all_df.to_csv(os.path.join(args.out_dir, f"unitigs_hits_ss_{n_repeats}.txt"), sep="\t")
 print("Finished.")
