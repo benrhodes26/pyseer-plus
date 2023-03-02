@@ -120,5 +120,6 @@ for i in successes:
     all_df.loc[df['variant'], cols] += df[cols].values / len(successes)
     all_df.loc[df['variant'], ["ss"]] += (df[['absbeta']] != 0).values / len(successes)
 
-all_df.to_csv(os.path.join(args.out_dir, f"unitigs_hits_ss_{n_repeats}.txt"), sep="\t")
+all_df['variant'] = all_df.index
+all_df.to_csv(os.path.join(args.out_dir, f"unitigs_hits_ss_{n_repeats}.txt"), sep="\t", index=0)
 print("Finished.")
