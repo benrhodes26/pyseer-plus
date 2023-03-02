@@ -20,17 +20,17 @@ else:
     n_repeats = args.n_repeats
 
 shared_args = [
-    "--wg enet",
-    "--alpha 0.0069",
-    "--min-af 0.01",
-    "--max-af 0.99",
-    "--cor-filter 0.25",
+    "--wg=enet",
+    "--alpha=0.0069",
+    "--min-af=0.01",
+    "--max-af=0.99",
+    "--cor-filter=0.25",
     "--no-standardise",
-    "--lambda-se 3",    
-    "--kmers unitig_output.pyseer",
-    "--load-vars enet_results/cached_vars",
+    "--lambda-se=3",    
+    "--kmers=unitig_output.pyseer",
+    "--load-vars=enet_results/cached_vars",
     "--uncompressed",
-    "--cpu 2"
+    "--cpu=2"
 ]
 
 pheno_df = pd.read_csv(args.pheno_file, sep="\t")
@@ -45,7 +45,7 @@ for i in range(n_repeats):
     pheno_i = os.path.join(out_dir, f"pheno_{i}.tsv")
     ss_pheno_df.to_csv(pheno_i, sep="\t", index=0)
 
-    specific_args = [f"--phenotypes {pheno_i}", f"--save-model {out_dir}/model"]
+    specific_args = [f"--phenotypes={pheno_i}", f"--save-model={out_dir}/model"]
     
     out_file = open(os.path.join(out_dir, "unitigs_hits.txt"), 'w')
     err_file = open(os.path.join(os.path.join(out_dir, "pyseer_err.txt")), 'w')
