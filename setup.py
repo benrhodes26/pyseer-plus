@@ -73,9 +73,9 @@ setup(
                       'pysam',
                       'DendroPy',
                       'matplotlib',
-                      'pybedtools',
+                      'pybedtools>=0.8.0',
                       'tqdm',
-                      'glmnet_python@https://github.com/johnlees/glmnet_python/archive/v1.0.2.zip'],
-    dependency_links = ['https://github.com/johnlees/glmnet_python/tarball/v1.0.2#egg=glmnet_python-v1.0.2'],
+                      'glmnet_python@https://github.com/benrhodes26/glmnet_python/archive/v1.0.0.zip'],
+    dependency_links = ['https://github.com/benrhodes26/glmnet_python/tarball/v1.0.0#egg=glmnet_python-v1.0.0'],
     test_suite="tests",
 )

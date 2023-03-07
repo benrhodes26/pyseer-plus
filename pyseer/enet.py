@@ -119,7 +119,7 @@ def load_all_vars(var_type, p, burden, burden_regions, infile,
 
 def fit_enet(p, variants, covariates, weights, continuous, alpha,
              lineage_dict = None, fold_ids = None, n_folds = 10, n_cpus = 1,
-             standardise=True, lambda_se=None):
+             standardise=True, lambda_se=None, plot_dir=None):
     """Fit an elastic net model to a set of variants. Prints
     information about model fit and prediction quality to STDERR
 
@@ -195,7 +195,7 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
 
     # Write some summary stats
     # R^2 = 1 - sum((yi_obs - yi_predicted)^2) /sum((yi_obs - yi_mean)^2)
-    method = "cross-validation "
+    method = "cross-val "
     if lambda_se:
         method = str(lambda_se) + "se " + method
     sys.stderr.write("Best penalty (lambda) from " + method +
@@ -211,6 +211,10 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
 
     sys.stderr.write("R^2 (computed using entire dataset for training, " \
                      "and hence NOT cross-validated): " + '%.3f' % Decimal(R2) + "\n")
+    
+    # plot cvm along with error bars given by cvsd
+    if plot_dir:
+        plot_crossval_curves(lambda_se, plot_dir, enet_fit, cvm, cvsd, best_lambda, method)
 
     # Report R2 for each fold (strain/clade)
     if fold_ids is not None:
@@ -219,6 +223,40 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
                                   lineage_dict, continuous)
 
     return(betas.reshape(-1,))
+
+
+def plot_crossval_curves(lambda_se, plot_dir, enet_fit, cvm, cvsd, best_lambda, method):
+    try:
+        from matplotlib import pyplot as plt
+        fig, axs = plt.subplots(2, 1, sharex=True)
+        yvals, ystderr = cvm, cvsd
+        xvals = enet_fit['lambdau']
+        ax = axs[0]
+        ax.plot(xvals, yvals, color='blue', label="val")
+        ax.fill_between(xvals, yvals - ystderr, yvals + ystderr, color='blue', alpha=0.2)
+        if "trn_cvm" in enet_fit:
+            yvals, ystderr = enet_fit['trn_cvm'], enet_fit['trn_cvsd']
+            ax.plot(xvals, yvals, color='red', label='train')
+            ax.fill_between(xvals, yvals - ystderr, yvals + ystderr, color='red', alpha=0.2)
+        # add vertical dashed line at enet_fit['lambda_min']
+        ax.axvline(enet_fit['lambda_min'], color='gray', linestyle='--', label='min cross-val')
+        if lambda_se:
+            ax.axvline(best_lambda, color='black', linestyle='--', label=method)
+        ax.set_ylabel("Deviance")
+        ax.legend(loc='best')
+        ax.grid()
+        ax = axs[1]
+        ax.set_ylabel("No. variants")
+        yvals = enet_fit['glmnet_fit']['df']
+        ax.plot(xvals, yvals)
+        ax.axvline(enet_fit['lambda_min'], color='gray', linestyle='--', label='min cross-val')
+        if lambda_se:
+            ax.axvline(best_lambda, color='black', linestyle='--', label=method)
+        ax.set_xlabel("Lambda")
+        ax.grid()
+        fig.savefig(os.path.join(plot_dir, "crossval_error_vs_lambda.pdf"), dpi=300)
+    except Exception as e:
+        print("Skipping plotting of train-val curves due to following error ", e)
 
 
 def bisect_desc_unsorted(a, x):

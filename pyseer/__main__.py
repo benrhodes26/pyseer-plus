@@ -158,6 +158,9 @@ def get_options():
                       help='Prefix for loading variants')
     wg.add_argument('--save-model',
                       help='Prefix for saving model')
+    wg.add_argument('--plot-dir',
+                    default=os.getcwd(),
+                    help='directory for saving any plots created (matplotlib must be installed)')
     wg.add_argument('--alpha',
                       type=float,
                       default=0.0069,
@@ -666,7 +669,8 @@ def main():
             enet_betas = fit_enet(p, all_vars, cov, weights,
                                   options.continuous, options.alpha,
                                   lineage_dict_full, fold_ids, options.n_folds,
-                                  options.cpu, not options.no_standardise, options.lambda_se)
+                                  options.cpu, not options.no_standardise, 
+                                  options.lambda_se, options.plot_dir)
 
             # print those with passing indices, along with coefficient
             sys.stderr.write("Finding and printing selected variants\n")
