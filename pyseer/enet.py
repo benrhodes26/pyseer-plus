@@ -204,8 +204,8 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
                          '%.3f' % Decimal(enet_fit['cvm'][best_lambda_idx]) +
                          " ± " + '%.2E' % Decimal(enet_fit['cvsd'][best_lambda_idx]) + "\n")
         sys.stderr.write("Classification accuracy from "  + method + 
-                         '%.3f' % Decimal(enet_fit['cvm_class'][best_lambda_idx]) +
-                         " ± " + '%.2E' % Decimal(enet_fit['cvsd_class'][best_lambda_idx]) + "\n")
+                         '%.3f' % Decimal(100 * (1-enet_fit['cvm_class'][best_lambda_idx])) +
+                         " ± " + '%.2E' % Decimal(100 * enet_fit['cvsd_class'][best_lambda_idx]) + "\n")
         sys.stderr.write("Baseline accuracy: (achieved by always predicting the most common class): " + \
                          str(100 * max(p.values.mean(), 1-p.values.mean())) + "\n")
     
@@ -239,7 +239,7 @@ def plot_crossval_curves(lambda_se, plot_dir, enet_fit, best_lambda, method):
                 enet_fit['cvm'][best_lambda_idx] + (i * (enet_fit['cvsd'][best_lambda_idx])))
          )
         
-        ylabels = ["Deviance", "Accuracy", "MSE", "R^2"]
+        ylabels = ["Deviance", "Classification Error", "MSE", "R^2"]
         for measure, ylab in zip(["", "_class", "_mse", "_rsquared"], ylabels):
             fig, axs = plt.subplots(2, 1, sharex=True)
             yvals, ystderr = enet_fit['cvm' + measure], enet_fit['cvsd' + measure]

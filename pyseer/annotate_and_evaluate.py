@@ -198,7 +198,7 @@ def plot_gene_scatter_summaries(all_dfs, method_names, genes_of_interest, save_d
             to_annotate = list(set(grouped_info.sort_values("x_val", ascending=False).index[:k]).union(
                             set(grouped_info.sort_values("y_val", ascending=False).index[:k])))
             for g in genes_of_interest:
-                if g not in to_annotate:
+                if (g not in to_annotate) and (g in grouped_info.index):
                     to_annotate.append(g)
             
             anno_idxs = [list(grouped_info.index).index(a) for a in to_annotate]
