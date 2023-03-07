@@ -235,7 +235,7 @@ def plot_crossval_curves(lambda_se, plot_dir, enet_fit, best_lambda, method):
         lambs = []
         best_lambda_idx = np.argmin(enet_fit['cvm'])
         for i in lamb_se_vals:
-         lambs.append(bisect_desc_unsorted(enet_fit['cvm'][:best_lambda_idx+1], 
+            lambs.append(bisect_desc_unsorted(enet_fit['cvm'][:best_lambda_idx+1], 
                 enet_fit['cvm'][best_lambda_idx] + (i * (enet_fit['cvsd'][best_lambda_idx])))
          )
         
@@ -255,7 +255,7 @@ def plot_crossval_curves(lambda_se, plot_dir, enet_fit, best_lambda, method):
             # add vertical dashed line at enet_fit['lambda_min']
             ax.axvline(enet_fit['lambda_min'], color='black', linestyle='--', label='min cross-val')
             for marker, se, lamb in zip(mstyles, lamb_se_vals, lambs):
-                ax.axvline(best_lambda, color='black', marker=marker, linestyle='--', label=str(se) + "se")
+                ax.axvline(lamb, color='black', marker=marker, linestyle='--', label=str(se) + "se")
             ax.set_ylabel(ylab)
             ax.grid()
             handles, labels = ax.get_legend_handles_labels()
