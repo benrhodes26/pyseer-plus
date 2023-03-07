@@ -235,9 +235,10 @@ def plot_crossval_curves(lambda_se, plot_dir, enet_fit, best_lambda, method):
         lambs = []
         best_lambda_idx = np.argmin(enet_fit['cvm'])
         for i in lamb_se_vals:
-            lambs.append(bisect_desc_unsorted(enet_fit['cvm'][:best_lambda_idx+1], 
-                enet_fit['cvm'][best_lambda_idx] + (i * (enet_fit['cvsd'][best_lambda_idx])))
-         )
+            lamb_idx = bisect_desc_unsorted(enet_fit['cvm'][:best_lambda_idx+1], 
+                enet_fit['cvm'][best_lambda_idx] + (i * (enet_fit['cvsd'][best_lambda_idx]))
+                )
+            lambs.append(enet_fit['lambdau'][lamb_idx])
         
         ylabels = ["Deviance", "Classification Error", "MSE", "R^2"]
         for measure, ylab in zip(["", "_class", "_mse", "_rsquared"], ylabels):
@@ -268,7 +269,7 @@ def plot_crossval_curves(lambda_se, plot_dir, enet_fit, best_lambda, method):
             ax.plot(xvals, yvals)
             ax.axvline(enet_fit['lambda_min'], color='gray', linestyle='--', label='min cross-val')
             for marker, se, lamb in zip(mstyles, lamb_se_vals, lambs):
-                ax.axvline(best_lambda, color='black', marker=marker, linestyle='--', label=str(se) + "se")
+                ax.axvline(lamb, color='black', marker=marker, linestyle='--', label=str(se) + "se")
             if lambda_se:
                 ax.axvline(best_lambda, color='black', linestyle='--', label=method)
             ax.set_xlabel("Lambda")
