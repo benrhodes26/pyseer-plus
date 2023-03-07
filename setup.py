@@ -4,7 +4,10 @@ from os import path
 import os
 import re
 import io
+import sys
 
+# assert python version less than 3.11
+assert sys.version_info < (3, 11)
 
 def read(*names, **kwargs):
     with io.open(
@@ -31,6 +34,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='pyseer',
+    python_requires='<3.11',
     version=find_version("pyseer/__init__.py"),
     description='Sequence Elements Enrichment Analysis (SEER), python implementation',
     long_description=long_description,
@@ -75,7 +79,7 @@ setup(
                       'matplotlib',
                       'pybedtools>=0.8.0',
                       'tqdm',
-                      'glmnet_python@https://github.com/benrhodes26/glmnet_python/archive/v1.0.0.zip'],
-    dependency_links = ['https://github.com/benrhodes26/glmnet_python/tarball/v1.0.0#egg=glmnet_python-v1.0.0'],
+                      'glmnet_python@https://github.com/benrhodes26/glmnet_python/archive/v1.0.3.zip'],
+    dependency_links = ['https://github.com/benrhodes26/glmnet_python/tarball/v1.0.0#egg=glmnet_python-v1.0.3'],
     test_suite="tests",
 )

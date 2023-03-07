@@ -191,71 +191,91 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
     best_lambda = enet_fit['lambdau'][best_lambda_idx]
 
     betas = cvglmnetCoef(enet_fit, s = np.array([best_lambda], dtype=np.float64))
-    predictions, R2, accuracy = enet_predict(enet_fit, variants, continuous, p.values, best_lambda)
+    predictions, _, _ = enet_predict(enet_fit, variants, continuous, p.values, best_lambda)
 
     # Write some summary stats
-    # R^2 = 1 - sum((yi_obs - yi_predicted)^2) /sum((yi_obs - yi_mean)^2)
     method = "cross-val "
     if lambda_se:
         method = str(lambda_se) + "se " + method
     sys.stderr.write("Best penalty (lambda) from " + method +
                      '%.2E' % Decimal(best_lambda) + "\n")
     if not continuous:
-        sys.stderr.write("Best model deviance from "  + method + 
-                         '%.3f' % Decimal(cvm[best_lambda_idx]) +
-                         " ± " + '%.2E' % Decimal(cvsd[best_lambda_idx]) + "\n")
-        sys.stderr.write("Classification accuracy: (computed using entire dataset for training, " \
-                         "and hence NOT cross-validated): " + str(accuracy) + "\n")
+        sys.stderr.write("Model deviance from "  + method + 
+                         '%.3f' % Decimal(enet_fit['cvm'][best_lambda_idx]) +
+                         " ± " + '%.2E' % Decimal(enet_fit['cvsd'][best_lambda_idx]) + "\n")
+        sys.stderr.write("Classification accuracy from "  + method + 
+                         '%.3f' % Decimal(enet_fit['cvm_class'][best_lambda_idx]) +
+                         " ± " + '%.2E' % Decimal(enet_fit['cvsd_class'][best_lambda_idx]) + "\n")
         sys.stderr.write("Baseline accuracy: (achieved by always predicting the most common class): " + \
                          str(100 * max(p.values.mean(), 1-p.values.mean())) + "\n")
-
-    sys.stderr.write("R^2 (computed using entire dataset for training, " \
-                     "and hence NOT cross-validated): " + '%.3f' % Decimal(R2) + "\n")
     
-    # plot cvm along with error bars given by cvsd
+    # R^2 = 1 - sum((yi_obs - yi_predicted)^2) /sum((yi_obs - yi_mean)^2)
+    if 'cvm_rsquared' in enet_fit: 
+        sys.stderr.write("R^2 from "  + method + 
+                        '%.3f' % Decimal(enet_fit['cvm_rsquared'][best_lambda_idx]) +
+                        " ± " + '%.2E' % Decimal(enet_fit['cvsd_rsquared'][best_lambda_idx]) + "\n")
+    
     if plot_dir:
-        plot_crossval_curves(lambda_se, plot_dir, enet_fit, cvm, cvsd, best_lambda, method)
+        plot_crossval_curves(lambda_se, plot_dir, enet_fit, best_lambda, method)
 
     # Report R2 for each fold (strain/clade)
     if fold_ids is not None:
         sys.stderr.write("Predictions within each lineage\n")
-        write_lineage_predictions(p.values, predictions, fold_ids,
-                                  lineage_dict, continuous)
+        write_lineage_predictions(p.values, predictions, fold_ids, lineage_dict, continuous)
 
     return(betas.reshape(-1,))
 
 
-def plot_crossval_curves(lambda_se, plot_dir, enet_fit, cvm, cvsd, best_lambda, method):
+def plot_crossval_curves(lambda_se, plot_dir, enet_fit, best_lambda, method):
     try:
         from matplotlib import pyplot as plt
-        fig, axs = plt.subplots(2, 1, sharex=True)
-        yvals, ystderr = cvm, cvsd
-        xvals = enet_fit['lambdau']
-        ax = axs[0]
-        ax.plot(xvals, yvals, color='blue', label="val")
-        ax.fill_between(xvals, yvals - ystderr, yvals + ystderr, color='blue', alpha=0.2)
-        if "trn_cvm" in enet_fit:
-            yvals, ystderr = enet_fit['trn_cvm'], enet_fit['trn_cvsd']
-            ax.plot(xvals, yvals, color='red', label='train')
-            ax.fill_between(xvals, yvals - ystderr, yvals + ystderr, color='red', alpha=0.2)
-        # add vertical dashed line at enet_fit['lambda_min']
-        ax.axvline(enet_fit['lambda_min'], color='gray', linestyle='--', label='min cross-val')
-        if lambda_se:
-            ax.axvline(best_lambda, color='black', linestyle='--', label=method)
-        ax.set_ylabel("Deviance")
-        ax.legend(loc='best')
-        ax.grid()
-        ax = axs[1]
-        ax.set_ylabel("No. variants")
-        yvals = enet_fit['glmnet_fit']['df']
-        ax.plot(xvals, yvals)
-        ax.axvline(enet_fit['lambda_min'], color='gray', linestyle='--', label='min cross-val')
-        if lambda_se:
-            ax.axvline(best_lambda, color='black', linestyle='--', label=method)
-        ax.set_xlabel("Lambda")
-        ax.grid()
-        fig.savefig(os.path.join(plot_dir, "crossval_error_vs_lambda.pdf"), dpi=300)
-    except Exception as e:
+
+        mstyles = ['s', '^', 'o']
+        lamb_se_vals = [1, 3, 5]
+        lambs = []
+        best_lambda_idx = np.argmin(enet_fit['cvm'])
+        for i in lamb_se_vals:
+         lambs.append(bisect_desc_unsorted(enet_fit['cvm'][:best_lambda_idx+1], 
+                enet_fit['cvm'][best_lambda_idx] + (i * (enet_fit['cvsd'][best_lambda_idx])))
+         )
+        
+        ylabels = ["Deviance", "Accuracy", "MSE", "R^2"]
+        for measure, ylab in zip(["", "_class", "_mse", "_rsquared"], ylabels):
+            fig, axs = plt.subplots(2, 1, sharex=True)
+            yvals, ystderr = enet_fit['cvm' + measure], enet_fit['cvsd' + measure]
+            xvals = enet_fit['lambdau']
+            ax = axs[0]
+            ax.plot(xvals, yvals, color='blue', label="val")
+            ax.fill_between(xvals, yvals - ystderr, yvals + ystderr, color='blue', alpha=0.2)
+            if "trn_cvm" in enet_fit:
+                yvals, ystderr = enet_fit['trn_cvm' + measure], enet_fit['trn_cvsd' + measure]
+                ax.plot(xvals, yvals, color='red', label='train')
+                ax.fill_between(xvals, yvals - ystderr, yvals + ystderr, color='red', alpha=0.2)
+
+            # add vertical dashed line at enet_fit['lambda_min']
+            ax.axvline(enet_fit['lambda_min'], color='black', linestyle='--', label='min cross-val')
+            for marker, se, lamb in zip(mstyles, lamb_se_vals, lambs):
+                ax.axvline(best_lambda, color='black', marker=marker, linestyle='--', label=str(se) + "se")
+            ax.set_ylabel(ylab)
+            ax.grid()
+            handles, labels = ax.get_legend_handles_labels()
+            fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 0.95),
+                       fancybox=True, shadow=True, ncol=6, fontsize=8)
+                        
+            ax = axs[1]
+            ax.set_ylabel("No. variants")
+            yvals = enet_fit['glmnet_fit']['df']
+            ax.plot(xvals, yvals)
+            ax.axvline(enet_fit['lambda_min'], color='gray', linestyle='--', label='min cross-val')
+            for marker, se, lamb in zip(mstyles, lamb_se_vals, lambs):
+                ax.axvline(best_lambda, color='black', marker=marker, linestyle='--', label=str(se) + "se")
+            if lambda_se:
+                ax.axvline(best_lambda, color='black', linestyle='--', label=method)
+            ax.set_xlabel("Lambda")
+            ax.grid()
+
+            fig.savefig(os.path.join(plot_dir, "crossval" + measure + "_vs_lambda.pdf"), dpi=300)
+    except ImportError as e:
         print("Skipping plotting of train-val curves due to following error ", e)
 
 
