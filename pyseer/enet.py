@@ -231,7 +231,7 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
     
     # plot cross-validation trn/val curves
     if plot_dir:
-        plot_crossval_curves(lambda_se, plot_dir, enet_fit, best_lambda, method)
+        plot_crossval_curves(plot_dir, enet_fit)
 
     # report R2 for each fold (strain/clade)
     if fold_ids is not None:
@@ -241,10 +241,9 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
     return(betas.reshape(-1,))
 
 
-def plot_crossval_curves(lambda_se, plot_dir, enet_fit, best_lambda, method):
+def plot_crossval_curves(plot_dir, enet_fit):
     try:
         from matplotlib import pyplot as plt
-
         mstyles = ['s', '^', 'o']
         lamb_se_vals = [1, 3, 5]
         lambs = []
@@ -269,9 +268,9 @@ def plot_crossval_curves(lambda_se, plot_dir, enet_fit, best_lambda, method):
                 ax.fill_between(xvals, yvals - ystderr, yvals + ystderr, color='red', alpha=0.2)
 
             # add vertical dashed line at enet_fit['lambda_min']
-            ax.axvline(enet_fit['lambda_min'], color='black', linestyle='--', label='min cross-val')
+            ax.axvline(enet_fit['lambda_min'], color='gray', linestyle='--', label='min cross-val')
             for marker, se, lamb in zip(mstyles, lamb_se_vals, lambs):
-                ax.axvline(lamb, color='black', marker=marker, linestyle='--', label=str(se) + "se")
+                ax.axvline(lamb, color='gray', marker=marker, linestyle='--', label=str(se) + "se")
             ax.set_ylabel(ylab)
             ax.grid()
             handles, labels = ax.get_legend_handles_labels()
@@ -284,15 +283,13 @@ def plot_crossval_curves(lambda_se, plot_dir, enet_fit, best_lambda, method):
             ax.plot(xvals, yvals)
             ax.axvline(enet_fit['lambda_min'], color='gray', linestyle='--', label='min cross-val')
             for marker, se, lamb in zip(mstyles, lamb_se_vals, lambs):
-                ax.axvline(lamb, color='black', marker=marker, linestyle='--', label=str(se) + "se")
-            if lambda_se:
-                ax.axvline(best_lambda, color='black', linestyle='--', label=method)
+                ax.axvline(lamb, color='gray', marker=marker, linestyle='--', label=str(se) + "se")
             ax.set_xlabel("Lambda")
             ax.grid()
 
             fig.savefig(os.path.join(plot_dir, "crossval" + measure + "_vs_lambda.pdf"), dpi=300)
     except ImportError as e:
-        print("Skipping plotting of train-val curves due to following error ", e)
+        print("Skipping plotting of train-val curves since: ", e)
 
 
 def bisect_desc_unsorted(a, x):

@@ -321,6 +321,12 @@ def main():
         elif options.wg != 'enet':
             sys.stderr.write('--unpenalised-idxs can only be used with --wg=enet option')
             sys.exit(1)
+    if options.plot_dir:
+        try:
+            from matplotlib import pyplot as plt
+        except ImportError as e:
+            sys.stderr.write('Warning: could not import matplotlib. ' \
+                             'please install it if you want to to plot cross-val results')
 
     # silence warnings
     warnings.filterwarnings('ignore')
@@ -626,8 +632,9 @@ def main():
 
             # load indices of vars that we won't penalise
             if options.unpenalised_idxs:
-                p = pd.read_csv(options.unpenalised_idxs, sep="\t")
-                np_idxs = p[p.columns[-1]]
+                up_df = pd.read_csv(options.unpenalised_idxs, sep="\t")
+                np_idxs = up_df[up_df.columns[-1]].values
+                sys.stderr.write(f"Found {len(np_idxs)} variants that will not be penalised")
                 penalty_factor = np.ones(all_vars.shape[0])
                 penalty_factor[np_idxs] = 0
 
