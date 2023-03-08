@@ -163,8 +163,8 @@ def plot_causal_cf_curves(conf, tgt_feats, pr_curve_dict, max_len=None):
     save_fig(fig, f"{conf.save_dir}/", name)
 
 
-def plot_gene_scatter_summaries(all_dfs, method_names, genes_of_interest, save_dir, x_val=("mean", np.mean),
-                                 y_val=("max", "max"), plot_name="", num_genes_label=40):
+def plot_gene_scatter_summaries(all_dfs, method_names, genes_of_interest, save_dir, x_metric=("mean", np.mean),
+                                 y_metric=("max", "max"), plot_name="", num_genes_label=40):
 
     n_plots = 2 * len(method_names)  # coefs and pvals for each method
     num_cols = 2
@@ -184,15 +184,15 @@ def plot_gene_scatter_summaries(all_dfs, method_names, genes_of_interest, save_d
             
             # compute max/avg value of current metric per gene
             grouped_info = gene_groups.agg(
-                x_val=(col, x_val[1]),
-                y_val=(col, y_val[1]),
+                x_val=(col, x_metric[1]),
+                y_val=(col, y_metric[1]),
             )
             ax.scatter(grouped_info["x_val"], grouped_info["y_val"], alpha=0.8,
                         s=gene_groups.size()/2, edgecolors='k', linewidth=0.3)
             
             col = "|beta|" if j == 0 else "-log(pval)"
-            ax.set_xlabel(x_val[0] + " " + col)
-            ax.set_ylabel(y_val[0] + " " + col)
+            ax.set_xlabel(x_metric[0] + " " + col)
+            ax.set_ylabel(y_metric[0] + " " + col)
 
             k = num_genes_label // 2
             to_annotate = list(set(grouped_info.sort_values("x_val", ascending=False).index[:k]).union(
@@ -242,7 +242,8 @@ def plot_gene_cf_curves(annotated_ranked_hits, max_list_len=None, plot_name="",
                         save_dir="", genes=('pbpX', 'penA', 'pbp1A')):
 
     # TODO: need to adjust for a list of dfs and metric_names as input
-    raise NotImplementedError
+    print("gene-base CF curves not implemented yet")
+    sys.exit()
     fig, axs = subplots(1, 4, " ".join(genes) + " hits", "# variants checked", height=8)
     plotting_info = list(zip(*get_metric_plot_info()))
     for col, name, c, l, m in plotting_info:
@@ -518,6 +519,16 @@ def main():
     var_dfs = get_annotated_variants(options.var_types, options.var_files, options.annotation_files,
                                       options.ggcaller_xls, options.exclude_unmapped)
 
+    # save annotated tables in same location as original variant file
+    for df, varfile in zip(var_dfs, options.var_files):
+        varfile_dir = os.path.dirname(varfile)
+        df.to_csv(os.path.join(varfile_dir, "annotated_hits.tsv"), sep='\t')
+        if genes_of_interest:
+            for g in genes_of_interest:
+                subdf = df[df['gene'] == g].reset_index(drop=True)
+                subdf.drop(columns=['gene'], inplace=True)
+                subdf.to_csv(os.path.join(varfile_dir, f"annotated_hits_{g}.tsv"), sep='\t', index=0)
+
     # eval ranking for synthetic dataset e.g 'bacgwasim' dataset or real-genotype + simulated-phenotype
     if options.causal_vars:
         eval_causal_groundtruth(options, options.causal_vars, var_dfs)
@@ -526,7 +537,7 @@ def main():
     plot_gene_scatter_summaries(var_dfs, options.method_names, genes_of_interest, 
                                 save_dir, plot_name="avg_vs_max", num_genes_label=options.num_genes_label)
     plot_gene_scatter_summaries(var_dfs, options.method_names, genes_of_interest, 
-                                save_dir, x_val=("mean", np.mean), y_val=("count", len),
+                                save_dir, x_metric=("mean", np.mean), y_metric=("count", len),
                                 plot_name="avg_vs_len", num_genes_label=options.num_genes_label)
 
     # plot checked-and-found (CF) curves for genes of interest at different zoom-levels
