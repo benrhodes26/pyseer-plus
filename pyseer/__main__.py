@@ -689,7 +689,7 @@ def main():
                 up_df = pd.read_csv(options.unpenalised_idxs, sep="\t")
                 np_idxs = up_df[up_df.columns[-1]].values
                 sys.stderr.write(f"Found {len(np_idxs)} variants that will not be penalised\n")
-                penalty_factor = np.ones(all_vars.shape[0])
+                penalty_factor = np.ones(all_vars.shape[1])
                 penalty_factor[np_idxs] = 0
             else:
                 penalty_factor = np.empty([0])  # penalise all variants by default
