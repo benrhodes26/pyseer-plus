@@ -158,6 +158,10 @@ def get_options():
                       help='Prefix for loading variants')
     wg.add_argument('--save-model',
                       help='Prefix for saving model')
+    wg.add_argument('--unpenalised-idxs',
+                      default=None,
+                      help='tsv file (with headers) whose last column contains indices of variants ' \
+                            'that will go unpenalised when fitting the elastic net')
     wg.add_argument('--plot-dir',
                     default=os.getcwd(),
                     help='directory for saving any plots created (matplotlib must be installed)')
@@ -309,6 +313,14 @@ def main():
     if (options.block_size < 1):
         sys.stderr.write('Block size must be at least 1\n')
         sys.exit(1)
+    if options.unpenalised_idxs:
+        if not options.load_vars:
+            sys.stderr.write('--unpenalised-idxs can only be used if --load_vars is also used. " \
+                            "The indices are with reference to this the loaded sparse array.')
+            sys.exit(1)
+        elif options.wg != 'enet':
+            sys.stderr.write('--unpenalised-idxs can only be used with --wg=enet option')
+            sys.exit(1)
 
     # silence warnings
     warnings.filterwarnings('ignore')
@@ -601,10 +613,22 @@ def main():
     ###########################
     elif options.wg:
         model = options.wg
+        penalty_factor=np.empty([0])  # penalise all variants by default
+        
         # read all variants
         sys.stderr.write("Reading all variants\n")
         if options.load_vars:
+
+            # load cached sparse array
             all_vars = scipy.sparse.load_npz(options.load_vars + ".npz")
+
+            # load indices of vars that we won't penalise
+            if options.unpenalised_idxs:
+                p = pd.read_csv(options.unpenalised_idxs, sep="\t")
+                np_idxs = p[p.columns[-1]]
+                penalty_factor = np.zeros(all_vars.shape[0])
+                penalty_factor[np_idxs] = 1
+
             with open(options.load_vars + ".pkl", 'rb') as pickle_obj:
                 var_file_original, var_indices, saved_samples, loaded = pickle.load(pickle_obj)
                 if var_file_original != file_hash(var_file):
@@ -669,7 +693,7 @@ def main():
             enet_betas = fit_enet(p, all_vars, cov, weights,
                                   options.continuous, options.alpha,
                                   lineage_dict_full, fold_ids, options.n_folds,
-                                  options.cpu, not options.no_standardise, 
+                                  options.cpu, penalty_factor, not options.no_standardise, 
                                   options.lambda_se, options.plot_dir)
 
             # print those with passing indices, along with coefficient

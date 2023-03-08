@@ -10,7 +10,7 @@ LMM = namedtuple('LMM', ['kmer', 'pattern',
 
 Enet = namedtuple('Enet', ['kmer', 'af', 'prep', 'pvalue', 'kbeta',
                             'max_lineage', 'kstrains',
-                            'nkstrains', 'notes'])
+                            'nkstrains', 'notes', 'beta_idx'])
 
 Seer = namedtuple('Seer', ['kmer', 'pattern',
                            'af', 'prep', 'pvalue',

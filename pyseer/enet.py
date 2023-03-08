@@ -119,7 +119,7 @@ def load_all_vars(var_type, p, burden, burden_regions, infile,
 
 def fit_enet(p, variants, covariates, weights, continuous, alpha,
              lineage_dict = None, fold_ids = None, n_folds = 10, n_cpus = 1,
-             standardise=True, lambda_se=None, plot_dir=None):
+             penalty_factor=np.empty([0]), standardise=True, lambda_se=None, plot_dir=None):
     """Fit an elastic net model to a set of variants. Prints
     information about model fit and prediction quality to STDERR
 
@@ -156,6 +156,18 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
             Set to -1 to use all available
 
             [default = 1]
+        penalty_factor (np.array)
+            Separate penalty factors can be applied to each
+            coefficient. This is a number that multiplies lambda
+            to allow differential shrinkage. Can be 0 for some
+            variables, which implies no shrinkage, and that
+            variable is always included in the model. Default is
+            1 for all variables (and implicitly infinity for
+            variables listed in exclude). Note: the penalty
+            factors are internally rescaled to sum to nvars, and
+            the lambda sequence will reflect this change.
+
+            [default = np.empty([0])] - glmnet interprets this as a penalty of 1 for all vars
         standardise (bool)
             Whether to standardise the variants before fitting
 
@@ -172,28 +184,30 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
     if covariates.shape[0] > 0:
         variants = hstack([csc_matrix(covariates.values), variants])
 
-    # Run model fit
+    # TODO: remove standardise?
+    # fit model
     if fold_ids is None:
         enet_fit = cvglmnet(x = variants, y = p.values.astype('float64'), family = regression_type,
                             nfolds = n_folds, alpha = alpha, parallel = n_cpus, weights = weights, 
-                            standardize = standardise)
+                            penalty_factor=penalty_factor, standardize = standardise)
     else:
         enet_fit = cvglmnet(x = variants, y = p.values.astype('float64'), family = regression_type,
                             foldid = fold_ids, alpha = alpha, parallel = n_cpus, weights = weights,
-                            standardize = standardise)
+                            penalty_factor=penalty_factor, standardize = standardise)
 
-    # Extract best lambda and predict class labels/values
+    # extract best lambda 
     cvm, cvsd = enet_fit['cvm'], enet_fit['cvsd']
     best_lambda_idx = np.argmin(cvm)
     if lambda_se:
         best_lambda_idx = bisect_desc_unsorted(cvm[:best_lambda_idx+1], 
                                     cvm[best_lambda_idx] + (lambda_se * (cvsd[best_lambda_idx])))
+        
+    # predict class labels/values
     best_lambda = enet_fit['lambdau'][best_lambda_idx]
-
     betas = cvglmnetCoef(enet_fit, s = np.array([best_lambda], dtype=np.float64))
     predictions, _, _ = enet_predict(enet_fit, variants, continuous, p.values, best_lambda)
 
-    # Write some summary stats
+    # write some summary stats
     method = "cross-val "
     if lambda_se:
         method = str(lambda_se) + "se " + method
@@ -209,16 +223,17 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
         sys.stderr.write("Baseline accuracy: (achieved by always predicting the most common class): " + \
                          str(100 * max(p.values.mean(), 1-p.values.mean())) + "\n")
     
-    # R^2 = 1 - sum((yi_obs - yi_predicted)^2) /sum((yi_obs - yi_mean)^2)
+    # R2 = 1 - sum((yi_obs - yi_predicted)^2) /sum((yi_obs - yi_mean)^2)
     if 'cvm_rsquared' in enet_fit: 
         sys.stderr.write("R^2 from "  + method + 
                         '%.3f' % Decimal(enet_fit['cvm_rsquared'][best_lambda_idx]) +
                         " ± " + '%.2E' % Decimal(enet_fit['cvsd_rsquared'][best_lambda_idx]) + "\n")
     
+    # plot cross-validation trn/val curves
     if plot_dir:
         plot_crossval_curves(lambda_se, plot_dir, enet_fit, best_lambda, method)
 
-    # Report R2 for each fold (strain/clade)
+    # report R2 for each fold (strain/clade)
     if fold_ids is not None:
         sys.stderr.write("Predictions within each lineage\n")
         write_lineage_predictions(p.values, predictions, fold_ids, lineage_dict, continuous)
@@ -499,7 +514,8 @@ def find_enet_selected(enet_betas, var_indices, p, c, var_type, fit_seer, burden
     enet_betas = enet_betas[c.shape[1]+1:]
 
     current_var = 0
-    for beta, var_idx in zip(enet_betas, var_indices):
+    for beta_idx, pair in enumerate(zip(enet_betas, var_indices)):
+        beta, var_idx = pair
         # Only need to process selected variants
         if beta == 0:
             continue
@@ -542,4 +558,4 @@ def find_enet_selected(enet_betas, var_indices, p, c, var_type, fit_seer, burden
             else:
                 max_lineage = None
 
-        yield var_obj.Enet(var_name, af, pval, adj_pval, beta, max_lineage, kstrains, nkstrains, notes)
+        yield var_obj.Enet(var_name, af, pval, adj_pval, beta, max_lineage, kstrains, nkstrains, notes, beta_idx)
