@@ -101,4 +101,7 @@ def format_output(item, lineage_dict=None, model='seer', print_samples=False):
                                  ','.join(item.nkstrains)))
     out += '\t%s' % ','.join(item.notes)
 
+    if model == "enet":
+        out += f'\t{item.beta_idx}'
+
     return out

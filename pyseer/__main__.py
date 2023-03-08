@@ -160,7 +160,7 @@ def get_options():
                       help='Prefix for saving model')
     wg.add_argument('--unpenalised-idxs',
                       default=None,
-                      help='tsv file (with headers) whose last column contains indices of variants ' \
+                      help='tsv file whose last column contains indices of variants ' \
                             'that will go unpenalised when fitting the elastic net')
     wg.add_argument('--plot-dir',
                     default=os.getcwd(),
@@ -527,8 +527,10 @@ def main():
     if options.print_samples:
         header += ['k-samples', 'nk-samples']
     header.append('notes')
-    if not options.wg:
-        print('\t'.join(header))
+    if options.wg == "enet":
+        header.append('beta_idx')
+        
+    print('\t'.join(header))
 
     # multiprocessing setup
     if not options.wg and options.cpu > 1:
@@ -614,7 +616,7 @@ def main():
     elif options.wg:
         model = options.wg
         penalty_factor=np.empty([0])  # penalise all variants by default
-        
+
         # read all variants
         sys.stderr.write("Reading all variants\n")
         if options.load_vars:
@@ -719,7 +721,6 @@ def main():
                                             burden_regions, infile, all_strains, sample_order, options.continuous,
                                             options.lineage, lineage_clusters, options.uncompressed)
 
-            print('\t'.join(header))
             for x in selected_vars:
                 printed += 1
                 print(format_output(x,
@@ -764,7 +765,6 @@ def main():
                                             burden_regions, infile, all_strains, sample_order, options.continuous,
                                             options.lineage, lineage_clusters, options.uncompressed)
 
-            print('\t'.join(header))
             for x in selected_vars:
                 printed += 1
                 print(format_output(x,

@@ -385,7 +385,7 @@ def parse_ggcaller_query(fasta, delim="_", position=-1):
 def parse_pyseer_hits(var_file):
     """Load a dataframe of pyseer hits, transforming the pvals and betas so that they can be used to rank hits"""
     try:
-        df = pd.read_csv(var_file, sep='\t', usecols=['variant', 'af', 'filter-pvalue', 'lrt-pvalue', 'beta', 'notes'])
+        df = pd.read_csv(var_file, sep='\t', usecols=['variant', 'af', 'filter-pvalue', 'lrt-pvalue', 'beta', 'beta_idx'])
         df['beta'] = df['beta'].apply(np.abs)
         df['filter-pvalue'] = df['filter-pvalue'].apply(lambda x: -np.log(x)/np.log(10))
         df['lrt-pvalue'] = df['lrt-pvalue'].apply(lambda x: -np.log(x)/np.log(10))
