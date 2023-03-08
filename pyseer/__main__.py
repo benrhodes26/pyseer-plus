@@ -313,12 +313,7 @@ def main():
     if (options.block_size < 1):
         sys.stderr.write('Block size must be at least 1\n')
         sys.exit(1)
-    if options.unpenalised_idxs:
-        if not options.load_vars:
-            sys.stderr.write('--unpenalised-idxs can only be used if --load_vars is also used. " \
-                            "The indices are with reference to this the loaded sparse array.')
-            sys.exit(1)
-        elif options.wg != 'enet':
+    if options.unpenalised_idxs and options.wg != 'enet':
             sys.stderr.write('--unpenalised-idxs can only be used with --wg=enet option')
             sys.exit(1)
     if options.plot_dir:
@@ -621,7 +616,6 @@ def main():
     ###########################
     elif options.wg:
         model = options.wg
-        penalty_factor=np.empty([0])  # penalise all variants by default
 
         # read all variants
         sys.stderr.write("Reading all variants\n")
@@ -629,14 +623,6 @@ def main():
 
             # load cached sparse array
             all_vars = scipy.sparse.load_npz(options.load_vars + ".npz")
-
-            # load indices of vars that we won't penalise
-            if options.unpenalised_idxs:
-                up_df = pd.read_csv(options.unpenalised_idxs, sep="\t")
-                np_idxs = up_df[up_df.columns[-1]].values
-                sys.stderr.write(f"Found {len(np_idxs)} variants that will not be penalised")
-                penalty_factor = np.ones(all_vars.shape[0])
-                penalty_factor[np_idxs] = 0
 
             with open(options.load_vars + ".pkl", 'rb') as pickle_obj:
                 var_file_original, var_indices, saved_samples, loaded = pickle.load(pickle_obj)
@@ -697,8 +683,18 @@ def main():
 
         # fit enet with cross validation
         if (model == "enet"):
-            sys.stderr.write("Fitting elastic net to top " + str(tested) +
-                             " variants\n")
+
+            # load indices of vars that we won't penalise
+            if options.unpenalised_idxs:
+                up_df = pd.read_csv(options.unpenalised_idxs, sep="\t")
+                np_idxs = up_df[up_df.columns[-1]].values
+                sys.stderr.write(f"Found {len(np_idxs)} variants that will not be penalised\n")
+                penalty_factor = np.ones(all_vars.shape[0])
+                penalty_factor[np_idxs] = 0
+            else:
+                penalty_factor = np.empty([0])  # penalise all variants by default
+
+            sys.stderr.write("Fitting elastic net to top " + str(tested) + " variants\n")
             enet_betas = fit_enet(p, all_vars, cov, weights,
                                   options.continuous, options.alpha,
                                   lineage_dict_full, fold_ids, options.n_folds,

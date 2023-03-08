@@ -286,8 +286,11 @@ def plot_crossval_curves(plot_dir, enet_fit):
                 ax.axvline(lamb, color='gray', marker=marker, linestyle='--', label=str(se) + "se")
             ax.set_xlabel("Lambda")
             ax.grid()
-
-            fig.savefig(os.path.join(plot_dir, "crossval" + measure + "_vs_lambda.pdf"), dpi=300)
+            if measure:
+                fig.savefig(os.path.join(plot_dir, "crossval" + measure + "_vs_lambda.pdf"), dpi=300)
+            else:
+                fig.savefig(os.path.join(plot_dir, "crossval.pdf"), dpi=300)
+                
     except ImportError as e:
         print("Skipping plotting of train-val curves since: ", e)
 

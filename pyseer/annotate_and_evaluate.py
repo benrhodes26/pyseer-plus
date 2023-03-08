@@ -163,7 +163,7 @@ def plot_causal_cf_curves(conf, tgt_feats, pr_curve_dict, max_len=None):
     save_fig(fig, f"{conf.save_dir}/", name)
 
 
-def plot_gene_scatter_summaries(all_dfs, method_names, genes_of_interest, save_dir, x_metric=("mean", np.mean),
+def plot_gene_scatter_summaries(all_dfs, method_names, good_genes, bad_genes, x_metric=("mean", np.mean),
                                  y_metric=("max", "max"), plot_name="", num_genes_label=40):
 
     n_plots = 2 * len(method_names)  # coefs and pvals for each method
@@ -174,14 +174,20 @@ def plot_gene_scatter_summaries(all_dfs, method_names, genes_of_interest, save_d
     all_figtext = []
     for i in range(num_rows):
         df = all_dfs[i]
+        # remove any genes I am not interested in
+        for g in bad_genes:
+            df = df[df['gene'] != g]
+
         for j, col in enumerate(['absbeta', '-logpval (unadjusted)']):
             
             ax = axs[i][j] if num_rows > 1 else axs[j]
 
             # remove all zeros for this metric
-            nonzero_df = df[df[col] > 0]
-            gene_groups = nonzero_df.groupby("gene")
-            
+            tmp = df[df[col] > 0]
+
+            # group by gene
+            gene_groups = tmp.groupby("gene")
+
             # compute max/avg value of current metric per gene
             grouped_info = gene_groups.agg(
                 x_val=(col, x_metric[1]),
@@ -197,14 +203,14 @@ def plot_gene_scatter_summaries(all_dfs, method_names, genes_of_interest, save_d
             k = num_genes_label // 2
             to_annotate = list(set(grouped_info.sort_values("x_val", ascending=False).index[:k]).union(
                             set(grouped_info.sort_values("y_val", ascending=False).index[:k])))
-            for g in genes_of_interest:
+            for g in good_genes:
                 if (g not in to_annotate) and (g in grouped_info.index):
                     to_annotate.append(g)
             
             anno_idxs = [list(grouped_info.index).index(a) for a in to_annotate]
             figtext = []
             for i, txt in zip(anno_idxs, to_annotate):
-                if txt in genes_of_interest:
+                if txt in good_genes:
                     bbox=dict(facecolor='green', alpha=0.3)
                 else:
                     bbox=None
@@ -499,7 +505,8 @@ def parse_args():
     parser.add_argument('--var_files', nargs='+', default=[], help="list of file names containing pyseer outputs")
     parser.add_argument('--annotation_files', nargs='+', default=[], help="list of file names containing annotation files")
     parser.add_argument('--method_names', nargs='+', default=[], help="list of method names")
-    parser.add_argument('--genes_of_interest', nargs='+', default=[], help="list of gene names")
+    parser.add_argument('--genes_of_interest', nargs='+', default=[], help="list of genes")
+    parser.add_argument('--genes_not_of_interest', nargs='+', default=[], help="list of genes to ignore")
     parser.add_argument('--causal_vars', nargs='+', default=[], help="list of causal vars (for simulated phenotypes)")
     parser.add_argument('--ggcaller_xls', type=str, default=os.getcwd(), help="directory to save output figures'")
     parser.add_argument('--num_genes_label', type=int, default=40, help="number of genes in scatter plot to label'")
@@ -534,9 +541,9 @@ def main():
         eval_causal_groundtruth(options, options.causal_vars, var_dfs)
     
     # make scatter plots for each ranking metric, grouping variants by gene
-    plot_gene_scatter_summaries(var_dfs, options.method_names, genes_of_interest, 
+    plot_gene_scatter_summaries(var_dfs, options.method_names, genes_of_interest, options.genes_not_of_interest,
                                 save_dir, plot_name="avg_vs_max", num_genes_label=options.num_genes_label)
-    plot_gene_scatter_summaries(var_dfs, options.method_names, genes_of_interest, 
+    plot_gene_scatter_summaries(var_dfs, options.method_names, genes_of_interest, options.genes_not_of_interest,
                                 save_dir, x_metric=("mean", np.mean), y_metric=("count", len),
                                 plot_name="avg_vs_len", num_genes_label=options.num_genes_label)
 
