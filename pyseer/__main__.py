@@ -529,7 +529,7 @@ def main():
     header.append('notes')
     if options.wg == "enet":
         header.append('beta_idx')
-        
+
     print('\t'.join(header))
 
     # multiprocessing setup
@@ -628,8 +628,8 @@ def main():
             if options.unpenalised_idxs:
                 p = pd.read_csv(options.unpenalised_idxs, sep="\t")
                 np_idxs = p[p.columns[-1]]
-                penalty_factor = np.zeros(all_vars.shape[0])
-                penalty_factor[np_idxs] = 1
+                penalty_factor = np.ones(all_vars.shape[0])
+                penalty_factor[np_idxs] = 0
 
             with open(options.load_vars + ".pkl", 'rb') as pickle_obj:
                 var_file_original, var_indices, saved_samples, loaded = pickle.load(pickle_obj)
