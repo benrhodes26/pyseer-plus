@@ -163,8 +163,9 @@ def plot_causal_cf_curves(conf, tgt_feats, pr_curve_dict, max_len=None):
     save_fig(fig, f"{conf.save_dir}/", name)
 
 
-def plot_gene_scatter_summaries(all_dfs, method_names, good_genes, bad_genes, x_metric=("mean", np.mean),
-                                 y_metric=("max", "max"), plot_name="", num_genes_label=40):
+def plot_gene_scatter_summaries(all_dfs, method_names, good_genes, bad_genes, save_dir,
+                                x_metric=("mean", np.mean), y_metric=("max", "max"), 
+                                plot_name="", num_genes_label=40):
 
     n_plots = 2 * len(method_names)  # coefs and pvals for each method
     num_cols = 2
@@ -193,6 +194,7 @@ def plot_gene_scatter_summaries(all_dfs, method_names, good_genes, bad_genes, x_
                 x_val=(col, x_metric[1]),
                 y_val=(col, y_metric[1]),
             )
+            
             ax.scatter(grouped_info["x_val"], grouped_info["y_val"], alpha=0.8,
                         s=gene_groups.size()/2, edgecolors='k', linewidth=0.3)
             
