@@ -184,7 +184,6 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
     if covariates.shape[0] > 0:
         variants = hstack([csc_matrix(covariates.values), variants])
 
-    # TODO: remove standardise?
     # fit model
     if fold_ids is None:
         enet_fit = cvglmnet(x = variants, y = p.values.astype('float64'), family = regression_type,
@@ -229,9 +228,9 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
                         '%.3f' % Decimal(enet_fit['cvm_rsquared'][best_lambda_idx]) +
                         " ± " + '%.2E' % Decimal(enet_fit['cvsd_rsquared'][best_lambda_idx]) + "\n")
     
-    # plot cross-validation trn/val curves
-    if plot_dir:
-        plot_crossval_curves(plot_dir, enet_fit)
+        # plot cross-validation trn/val curves for various metrics
+        if plot_dir:
+            plot_crossval_curves(plot_dir, enet_fit)
 
     # report R2 for each fold (strain/clade)
     if fold_ids is not None:
@@ -244,8 +243,8 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
 def plot_crossval_curves(plot_dir, enet_fit):
     try:
         from matplotlib import pyplot as plt
-        mstyles = ['s', '^', 'o']
-        lamb_se_vals = [1, 3, 5]
+        mstyles = ['s', '^']
+        lamb_se_vals = [1, 3]
         lambs = []
         best_lambda_idx = np.argmin(enet_fit['cvm'])
         for i in lamb_se_vals:
@@ -253,21 +252,42 @@ def plot_crossval_curves(plot_dir, enet_fit):
                 enet_fit['cvm'][best_lambda_idx] + (i * (enet_fit['cvsd'][best_lambda_idx]))
                 )
             lambs.append(enet_fit['lambdau'][lamb_idx])
-        
+
+        xvals = enet_fit['lambdau']
+        half = int(0.5*len(xvals))
+        zoom = False
+        if lambs[-1] < xvals[half]:
+            xvals = xvals[:half]
+            zoom = True
+
+        enet_keys = ["", "_class", "_mse", "_rsquared"]
         ylabels = ["Deviance", "Classification Error", "MSE", "R^2"]
-        for measure, ylab in zip(["", "_class", "_mse", "_rsquared"], ylabels):
+        rawdata = {'val_' + name: enet_fit['cvm' + k] for name, k in zip(ylabels, enet_keys)}
+        rawdata.update({'val_sd_' + name: enet_fit['cvsd' + k] for name, k in zip(ylabels, enet_keys)})
+        rawdata.update({'trn_' + name: enet_fit['trn_cvm' + k] for name, k in zip(ylabels, enet_keys)})
+        rawdata.update({'trn_sd_' + name: enet_fit['trn_cvsd' + k] for name, k in zip(ylabels, enet_keys)})
+        rawdata['lambda'] = enet_fit['lambdau']
+        pd.DataFrame(rawdata).to_csv(os.path.join(plot_dir, "raw_plotting_data.tsv"), sep='\t', index=False)
+
+        for ekey, ylab in zip(enet_keys, ylabels):
             fig, axs = plt.subplots(2, 1, sharex=True)
-            yvals, ystderr = enet_fit['cvm' + measure], enet_fit['cvsd' + measure]
-            xvals = enet_fit['lambdau']
             ax = axs[0]
+            
+            # val data
+            yvals, ystderr = enet_fit['cvm' + ekey], enet_fit['cvsd' + ekey]
+            if zoom:
+                yvals, ystderr = yvals[:half], ystderr[:half]
             ax.plot(xvals, yvals, color='blue', label="val")
             ax.fill_between(xvals, yvals - ystderr, yvals + ystderr, color='blue', alpha=0.2)
-            if "trn_cvm" in enet_fit:
-                yvals, ystderr = enet_fit['trn_cvm' + measure], enet_fit['trn_cvsd' + measure]
-                ax.plot(xvals, yvals, color='red', label='train')
-                ax.fill_between(xvals, yvals - ystderr, yvals + ystderr, color='red', alpha=0.2)
 
-            # add vertical dashed line at enet_fit['lambda_min']
+            # train data
+            yvals, ystderr = enet_fit['trn_cvm' + ekey], enet_fit['trn_cvsd' + ekey]
+            if zoom:
+                yvals, ystderr = yvals[:half], ystderr[:half]
+            ax.plot(xvals, yvals, color='red', label='train')
+            ax.fill_between(xvals, yvals - ystderr, yvals + ystderr, color='red', alpha=0.2)
+
+            # demarcate different lambdas
             ax.axvline(enet_fit['lambda_min'], color='gray', linestyle='--', label='min cross-val')
             for marker, se, lamb in zip(mstyles, lamb_se_vals, lambs):
                 ax.axvline(lamb, color='gray', marker=marker, linestyle='--', label=str(se) + "se")
@@ -276,18 +296,21 @@ def plot_crossval_curves(plot_dir, enet_fit):
             handles, labels = ax.get_legend_handles_labels()
             fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 0.95),
                        fancybox=True, shadow=True, ncol=6, fontsize=8)
-                        
+            
+            # plot number of nonzero coefficients as a function of lambda
             ax = axs[1]
             ax.set_ylabel("No. variants")
             yvals = enet_fit['glmnet_fit']['df']
+            if zoom:
+                yvals = yvals[:half]
             ax.plot(xvals, yvals)
             ax.axvline(enet_fit['lambda_min'], color='gray', linestyle='--', label='min cross-val')
             for marker, se, lamb in zip(mstyles, lamb_se_vals, lambs):
                 ax.axvline(lamb, color='gray', marker=marker, linestyle='--', label=str(se) + "se")
             ax.set_xlabel("Lambda")
             ax.grid()
-            if measure:
-                fig.savefig(os.path.join(plot_dir, "crossval" + measure + "_vs_lambda.pdf"), dpi=300)
+            if ekey:
+                fig.savefig(os.path.join(plot_dir, "crossval" + ekey + "_vs_lambda.pdf"), dpi=300)
             else:
                 fig.savefig(os.path.join(plot_dir, "crossval.pdf"), dpi=300)
                 
