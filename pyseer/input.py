@@ -365,9 +365,12 @@ def read_variant(infile, p, var_type, burden, burden_regions,
         if var_type == "kmers":
             if not uncompressed:
                 line_in = line_in.decode()
-            var_name, strains = (line_in.split()[0],
-                                 line_in.rstrip().split(
-                                 '|')[1].lstrip().split())
+            var_name = line_in.split()[0]
+            fields = line_in.rstrip().split('|')
+            strains = fields[1]
+            if len(fields) == 3:
+                strains += fields[2]
+            strains = strains.lstrip().split()
 
             if keep_list != None and var_name not in keep_list:
                 return(eof, None, None, None, None, None, None)
@@ -435,8 +438,7 @@ def read_variant(infile, p, var_type, burden, burden_regions,
         if len(kstrains) == 0:
             sys.stderr.write("No observations of " + var_name + " in selected samples\n")
 
-        k = np.array([d[x] for x in p.index
-                      if x in d])
+        k = np.array([d[x] for x in p.index if x in d])
         missing = float(np.sum(np.isnan(k))) / len(all_strains)
 
     return (eof, k, var_name, kstrains, nkstrains, af, missing)
