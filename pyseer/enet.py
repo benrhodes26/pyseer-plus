@@ -243,54 +243,44 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
 def plot_crossval_curves(plot_dir, enet_fit):
     try:
         from matplotlib import pyplot as plt
-        mstyles = ['s', '^']
-        lamb_se_vals = [1, 3]
-        lambs = []
+        mstyles = ['s', '^', 'o']
+        lamb_se_vals = [0, 1, 3]
+        lamb_idxs = []
         best_lambda_idx = np.argmin(enet_fit['cvm'])
         for i in lamb_se_vals:
             lamb_idx = bisect_desc_unsorted(enet_fit['cvm'][:best_lambda_idx+1], 
                 enet_fit['cvm'][best_lambda_idx] + (i * (enet_fit['cvsd'][best_lambda_idx]))
                 )
-            lambs.append(enet_fit['lambdau'][lamb_idx])
-
-        xvals = enet_fit['lambdau']
-        half = int(0.5*len(xvals))
-        zoom = False
-        if lambs[-1] < xvals[half]:
-            xvals = xvals[:half]
-            zoom = True
+            lamb_idxs.append(lamb_idx)
 
         enet_keys = ["", "_class", "_mse", "_rsquared"]
         ylabels = ["Deviance", "Classification Error", "MSE", "R^2"]
-        rawdata = {'val_' + name: enet_fit['cvm' + k] for name, k in zip(ylabels, enet_keys)}
+        rawdata = {'lambda': enet_fit['lambdau']}
+        rawdata.update({'val_' + name: enet_fit['cvm' + k] for name, k in zip(ylabels, enet_keys)})
         rawdata.update({'val_sd_' + name: enet_fit['cvsd' + k] for name, k in zip(ylabels, enet_keys)})
         rawdata.update({'trn_' + name: enet_fit['trn_cvm' + k] for name, k in zip(ylabels, enet_keys)})
         rawdata.update({'trn_sd_' + name: enet_fit['trn_cvsd' + k] for name, k in zip(ylabels, enet_keys)})
-        rawdata['lambda'] = enet_fit['lambdau']
         pd.DataFrame(rawdata).to_csv(os.path.join(plot_dir, "raw_plotting_data.tsv"), sep='\t', index=False)
 
+        xvals = np.arange(len(enet_fit['lambdau']))
         for ekey, ylab in zip(enet_keys, ylabels):
             fig, axs = plt.subplots(2, 1, sharex=True)
             ax = axs[0]
             
             # val data
             yvals, ystderr = enet_fit['cvm' + ekey], enet_fit['cvsd' + ekey]
-            if zoom:
-                yvals, ystderr = yvals[:half], ystderr[:half]
             ax.plot(xvals, yvals, color='blue', label="val")
             ax.fill_between(xvals, yvals - ystderr, yvals + ystderr, color='blue', alpha=0.2)
 
             # train data
             yvals, ystderr = enet_fit['trn_cvm' + ekey], enet_fit['trn_cvsd' + ekey]
-            if zoom:
-                yvals, ystderr = yvals[:half], ystderr[:half]
             ax.plot(xvals, yvals, color='red', label='train')
             ax.fill_between(xvals, yvals - ystderr, yvals + ystderr, color='red', alpha=0.2)
 
             # demarcate different lambdas
-            ax.axvline(enet_fit['lambda_min'], color='gray', linestyle='--', label='min cross-val')
-            for marker, se, lamb in zip(mstyles, lamb_se_vals, lambs):
-                ax.axvline(lamb, color='gray', marker=marker, linestyle='--', label=str(se) + "se")
+            for marker, se, idx in zip(mstyles, lamb_se_vals, lamb_idxs):
+                label = str(se) + "se" if se > 0 else "min cross-val"
+                ax.axvline(idx, color='gray', marker=marker, linestyle='--', label=label)
             ax.set_ylabel(ylab)
             ax.grid()
             handles, labels = ax.get_legend_handles_labels()
@@ -301,13 +291,11 @@ def plot_crossval_curves(plot_dir, enet_fit):
             ax = axs[1]
             ax.set_ylabel("No. variants")
             yvals = enet_fit['glmnet_fit']['df']
-            if zoom:
-                yvals = yvals[:half]
             ax.plot(xvals, yvals)
-            ax.axvline(enet_fit['lambda_min'], color='gray', linestyle='--', label='min cross-val')
-            for marker, se, lamb in zip(mstyles, lamb_se_vals, lambs):
-                ax.axvline(lamb, color='gray', marker=marker, linestyle='--', label=str(se) + "se")
-            ax.set_xlabel("Lambda")
+            for marker, se, idx in zip(mstyles, lamb_se_vals, lamb_idxs):
+                label = str(se) + "se" if se > 0 else "min cross-val"
+                ax.axvline(idx, color='gray', marker=marker, linestyle='--', label=label)
+            ax.set_xlabel("Lambda index")
             ax.grid()
             if ekey:
                 fig.savefig(os.path.join(plot_dir, "crossval" + ekey + "_vs_lambda.pdf"), dpi=300)

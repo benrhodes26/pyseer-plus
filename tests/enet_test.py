@@ -266,8 +266,6 @@ class TestFitEnet(unittest.TestCase):
         a = csc_matrix(a)
         weights = np.ones((p.shape[0], 1))
         # alpha = 1
-        pdir = os.path.join(os.getcwd(), "tmp")
-        os.makedirs(pdir, exist_ok=True)
         b = fit_enet(p, a, pd.DataFrame([]), weights, False, 1)
         self.assertTrue(b.sum() - 0.24116205681688876 < 1E-7)
         self.assertTrue(abs(b -
@@ -287,6 +285,8 @@ class TestFitEnet(unittest.TestCase):
                                      1.89393939e-37
                                      ])).max() < 1E-7)
         # alpha = 0.5
+        pdir = os.path.join(os.getcwd(), "tmp")
+        os.makedirs(pdir, exist_ok=True)
         b = fit_enet(p, a, pd.DataFrame([]), weights, False, 0.5, plot_dir=pdir)
         self.assertTrue(b.sum() - 0.24116205681688876 < 1E-7)
         self.assertTrue(abs(b -
