@@ -395,8 +395,8 @@ def parse_pyseer_hits(var_file):
     try:
         df = pd.read_csv(var_file, sep='\t', usecols=['variant', 'af', 'filter-pvalue', 'lrt-pvalue', 'beta', 'beta_idx'])
         df['beta'] = df['beta'].apply(np.abs)
-        df['filter-pvalue'] = df['filter-pvalue'].apply(lambda x: -np.log(x)/np.log(10))
-        df['lrt-pvalue'] = df['lrt-pvalue'].apply(lambda x: -np.log(x)/np.log(10))
+        df['filter-pvalue'] = df['filter-pvalue'].apply(lambda x: -np.log(np.maximum(x, np.e**-700))/np.log(10))
+        df['lrt-pvalue'] = df['lrt-pvalue'].apply(lambda x: -np.log(np.maximum(x, np.e**-700))/np.log(10))
         df = df.rename(columns={'beta': 'absbeta', 'filter-pvalue': '-logpval (unadjusted)', 'lrt-pvalue': '-logpval (lmm-adjusted)'})
     except:
         df = pd.read_csv(var_file, sep='\t', usecols=['variant', 'af', '-logpval (unadjusted)', '-logpval (lmm-adjusted)', 'absbeta', 'notes'])
