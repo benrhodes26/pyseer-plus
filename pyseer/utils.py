@@ -6,6 +6,8 @@ import os
 import contextlib
 from decimal import Decimal
 
+from matplotlib import pyplot as plt
+
 
 # thanks to Laurent LAPORTE on SO
 @contextlib.contextmanager
@@ -105,3 +107,55 @@ def format_output(item, lineage_dict=None, model='seer', print_samples=False):
         out += f'\t{item.beta_idx}'
 
     return out
+
+def save_fig(fig, save_dir, name="", both_formats=False, close=True):
+    os.makedirs(save_dir, exist_ok=True)
+    fig.savefig(os.path.join(save_dir, f"{name}.pdf"), bbox_inches='tight', dpi=300)
+    
+    if both_formats:
+        fig.savefig(os.path.join(save_dir, f"{name}.png"), bbox_inches='tight', dpi=300)
+    if close:
+        plt.close(fig)  # otherwise figure may hang around in memory
+
+
+def plot(title, xlabel, ylabel, figsize=(6, 4), xscale="linear", yscale="linear", use_grid=True):
+    """A super basic plotting function"""
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.set(xscale=xscale, yscale=yscale, xlabel=xlabel, ylabel=ylabel)  # a convenient way to set lots of properties at once!
+    ax.grid(use_grid)
+    fig.suptitle(title)  # why not fig.set_title()? I have no idea, and this seems like a bad design choice to me...
+    
+    return fig, ax
+
+
+def subplots(nrows, ncols, title=None, xlabel=None, ylabel=None, width=9, height=6,
+             scale="auto", sharex=True, sharey=True, grid=True, max_width=12, tight_layout=True):
+    """A function for making nicely formatted grids of subplots with shared labels on the x-axis and y axis"""
+    assert nrows > 1 or ncols > 1, "use plot() to create a single subplot"
+    
+    fig_width = width * ncols
+    fig_height = height * nrows
+    
+    if scale == "auto":
+        scale = min(1.0, max_width/fig_width)  # width of figure cannot exceede max_width inches
+        scale = min(scale, max_width/fig_height)  # height of figure cannot exceede max_width inches
+    
+    figsize=(scale * fig_width, scale * fig_height)
+    fig, axs = plt.subplots(nrows, ncols, figsize=figsize, sharex=sharex, sharey=sharey)
+    
+    for ax in axs.flat:
+        ax.grid(grid)  # maybe add grid lines
+        
+    if title: fig.suptitle(title)
+    if xlabel: fig.supxlabel(xlabel)  # shared x label
+    if ylabel: fig.supylabel(ylabel)  # shared y label
+    
+    fig.tight_layout()  # adjust the padding between and around subplots to neaten things up
+    
+    return fig, axs
+
+class dotdict(dict):
+    """dot.notation access to dictionary attributes"""
+    __getattr__ = dict.get
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__

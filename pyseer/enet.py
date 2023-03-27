@@ -119,7 +119,8 @@ def load_all_vars(var_type, p, burden, burden_regions, infile,
 
 def fit_enet(p, variants, covariates, weights, continuous, alpha,
              lineage_dict = None, fold_ids = None, n_folds = 10, n_cpus = 1,
-             penalty_factor=np.empty([0]), standardise=True, lambda_se=None, plot_dir=None):
+             penalty_factor=np.empty([0]), standardise=True, 
+             lambda_se=None, lambda_idx=None, plot_dir=None):
     """Fit an elastic net model to a set of variants. Prints
     information about model fit and prediction quality to STDERR
 
@@ -172,6 +173,14 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
             Whether to standardise the variants before fitting
 
             [default = False]
+        lambda_se (float)
+            choose lambda with loss this many std-errors from cross-validation minimiser
+
+            [default = None]
+        lambda_idx (int)
+            The index of the lambda value to use for prediction (if None, the best lambda is used)
+        
+            [default = None]
     Returns:
         betas (numpy.array)
             The fitted betas (slopes) for each variant
@@ -194,12 +203,15 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
                             foldid = fold_ids, alpha = alpha, parallel = n_cpus, weights = weights,
                             penalty_factor=penalty_factor, standardize = standardise)
 
-    # extract best lambda 
+    # choose lambda
     cvm, cvsd = enet_fit['cvm'], enet_fit['cvsd']
-    best_lambda_idx = np.argmin(cvm)
-    if lambda_se:
-        best_lambda_idx = bisect_desc_unsorted(cvm[:best_lambda_idx+1], 
-                                    cvm[best_lambda_idx] + (lambda_se * (cvsd[best_lambda_idx])))
+    if lambda_idx:
+        best_lambda_idx = lambda_idx
+    elif lambda_se:
+        cvidx = np.argmin(cvm)
+        best_lambda_idx = bisect_desc_unsorted(cvm[:cvidx+1], cvm[cvidx] + (lambda_se * (cvsd[cvidx])))
+    else:
+        best_lambda_idx = np.argmin(cvm)
         
     # predict class labels/values
     best_lambda = enet_fit['lambdau'][best_lambda_idx]
@@ -207,24 +219,20 @@ def fit_enet(p, variants, covariates, weights, continuous, alpha,
     predictions, _, _ = enet_predict(enet_fit, variants, continuous, p.values, best_lambda)
 
     # write some summary stats
-    method = "cross-val "
-    if lambda_se:
-        method = str(lambda_se) + "se " + method
-    sys.stderr.write("Best penalty (lambda) from " + method +
-                     '%.2E' % Decimal(best_lambda) + "\n")
+    sys.stderr.write("Chosen lambda: " + '%.2E' % Decimal(best_lambda) + "\n")
     if not continuous:
-        sys.stderr.write("Model deviance from "  + method + 
+        sys.stderr.write("Model deviance: "  +
                          '%.3f' % Decimal(enet_fit['cvm'][best_lambda_idx]) +
                          " ± " + '%.2E' % Decimal(enet_fit['cvsd'][best_lambda_idx]) + "\n")
-        sys.stderr.write("Classification accuracy from "  + method + 
+        sys.stderr.write("Classification accuracy: " + 
                          '%.3f' % Decimal(100 * (1-enet_fit['cvm_class'][best_lambda_idx])) +
                          " ± " + '%.2E' % Decimal(100 * enet_fit['cvsd_class'][best_lambda_idx]) + "\n")
-        sys.stderr.write("Baseline accuracy: (achieved by always predicting the most common class): " + \
+        sys.stderr.write("Baseline accuracy: (always predicting the most common class): " + \
                          str(100 * max(p.values.mean(), 1-p.values.mean())) + "\n")
     
     # R2 = 1 - sum((yi_obs - yi_predicted)^2) /sum((yi_obs - yi_mean)^2)
     if 'cvm_rsquared' in enet_fit: 
-        sys.stderr.write("R^2 from "  + method + 
+        sys.stderr.write("R^2: " + 
                         '%.3f' % Decimal(enet_fit['cvm_rsquared'][best_lambda_idx]) +
                         " ± " + '%.2E' % Decimal(enet_fit['cvsd_rsquared'][best_lambda_idx]) + "\n")
     

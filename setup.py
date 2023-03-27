@@ -66,7 +66,8 @@ setup(
             'scree_plot_pyseer = pyseer.scree_plot:main',
             'phandango_mapper = pyseer.kmer_mapping.phandango_plot:main',
             'annotate_hits_pyseer = pyseer.kmer_mapping.annotate_hits:main',
-            'enet_predict_pyseer = pyseer.enet_predict:main'
+            'enet_predict_pyseer = pyseer.enet_predict:main',
+            'annotate_and_evaluate_hits_pyseer = pyseer.annotate_and_evaluate:main'
             ]
     },
     install_requires=['numpy',

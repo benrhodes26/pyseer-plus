@@ -104,3 +104,5 @@ ENV/
 
 \.vscode/
 
+tmp/
+tests/tmp_results/

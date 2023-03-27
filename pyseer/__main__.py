@@ -172,10 +172,15 @@ def get_options():
                            '[Default: 0.0069]')
     wg.add_argument('--lambda-se',
                       type=int,
-                      default=None,
+                      default=1,
                       help='Choose the largest value of lambda such that error is \
                             within this many standard errors of the minimum'
-                           '[Default: None i.e choose lambda to minimise the error]')
+                           '[Default: 1]')
+    wg.add_argument('--lambda-index',
+                      type=int,
+                      default=None,
+                      help='Directly specify the index of the desired lambda [--lambda-se must be none]'
+                           '[Default: None]')
     wg.add_argument('--n-folds',
                       type=int,
                       default=10,
@@ -316,6 +321,9 @@ def main():
     if options.unpenalised_idxs and options.wg != 'enet':
             sys.stderr.write('--unpenalised-idxs can only be used with --wg=enet option')
             sys.exit(1)
+    if options.lambda_se and options.lambda_index:
+        sys.stderr.write('Choose only one alternative: --lambda-se, --lambda-index or neither\n')
+        sys.exit(1)
     if options.plot_dir:
         try:
             from matplotlib import pyplot as plt
@@ -502,8 +510,7 @@ def main():
         patterns = open(options.output_patterns, 'wb')
 
     # header fields
-    header = ['variant', 'af', 'filter-pvalue',
-              'lrt-pvalue']
+    header = ['variant', 'af', 'filter-pvalue', 'lrt-pvalue']
     if options.wg != "rf":
         header.append('beta')
     else:
@@ -658,7 +665,7 @@ def main():
 
         # Apply the correlation filtering
         if options.cor_filter > 0:
-            sys.stderr.write("Applying correlation filtering\n")
+            sys.stderr.write(f"Applying correlation filtering with filter {options.cor_filter} \n")
             cor_filter = correlation_filter(p, all_vars, options.cor_filter)
             all_vars = all_vars[cor_filter, :].transpose()
             var_indices = np.array(var_indices)[cor_filter]
@@ -699,7 +706,7 @@ def main():
                                   options.continuous, options.alpha,
                                   lineage_dict_full, fold_ids, options.n_folds,
                                   options.cpu, penalty_factor, not options.no_standardise, 
-                                  options.lambda_se, options.plot_dir)
+                                  options.lambda_se, options.lambda_index, options.plot_dir)
 
             # print those with passing indices, along with coefficient
             sys.stderr.write("Finding and printing selected variants\n")
