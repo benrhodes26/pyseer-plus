@@ -4,88 +4,13 @@ import numpy as np
 import os
 import pandas as pd
 
-from collections import defaultdict
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from collections import defaultdict
+from .utils import plot, subplots, save_fig
 
 
-def save_fig(fig, save_dir, name="", both_formats=False, close=True):
-    os.makedirs(save_dir, exist_ok=True)
-    fig.savefig(os.path.join(save_dir, f"{name}.pdf"), bbox_inches='tight', dpi=300)
-    
-    if both_formats:
-        fig.savefig(os.path.join(save_dir, f"{name}.png"), bbox_inches='tight', dpi=300)
-    if close:
-        plt.close(fig)  # otherwise figure may hang around in memory
-
-
-def plot(title, xlabel, ylabel, figsize=(6, 4), xscale="linear", yscale="linear", use_grid=True):
-    """A super basic plotting function"""
-    fig, ax = plt.subplots(figsize=figsize)
-    ax.set(xscale=xscale, yscale=yscale, xlabel=xlabel, ylabel=ylabel)  # a convenient way to set lots of properties at once!
-    ax.grid(use_grid)
-    fig.suptitle(title)  # why not fig.set_title()? I have no idea, and this seems like a bad design choice to me...
-    
-    return fig, ax
-
-
-def subplots(nrows, ncols, title=None, xlabel=None, ylabel=None, width=9, height=6,
-             scale="auto", sharex=True, sharey=True, grid=True, max_width=12, tight_layout=True):
-    """A function for making nicely formatted grids of subplots with shared labels on the x-axis and y axis"""
-    assert nrows > 1 or ncols > 1, "use plot() to create a single subplot"
-    
-    fig_width = width * ncols
-    fig_height = height * nrows
-    
-    if scale == "auto":
-        scale = min(1.0, max_width/fig_width)  # width of figure cannot exceede max_width inches
-        scale = min(scale, max_width/fig_height)  # height of figure cannot exceede max_width inches
-    
-    figsize=(scale * fig_width, scale * fig_height)
-    fig, axs = plt.subplots(nrows, ncols, figsize=figsize, sharex=sharex, sharey=sharey)
-    
-    for ax in axs.flat:
-        ax.grid(grid)  # maybe add grid lines
-        
-    if title: fig.suptitle(title)
-    if xlabel: fig.supxlabel(xlabel)  # shared x label
-    if ylabel: fig.supylabel(ylabel)  # shared y label
-    
-    fig.tight_layout()  # adjust the padding between and around subplots to neaten things up
-    
-    return fig, axs
-
-
-def prf1_curves_by_threshold_percentiles(targets, hit_ids, ranks, n_thresholds=100):
-    """Compute 3 metrics (precision, recall & F1) for a range of thresholds
-      and insert results into results_container
-
-    :param targets: binary array specifying whether a feature is causal (x=1) or not (x=0)
-    :param ranks: array specifiying a rank for each feature
-    :param thresholds: (optional) list of thresholds for which the metric should be computed
-    """
-    targets = set(targets)
-    thresholds = np.percentile(np.unique(ranks), np.arange(n_thresholds))[::-1]  # largest to smalleset
-    precisions, recalls, f1s = [], [], []
-    for i, threshold in enumerate(thresholds):
-
-        pred_idxs = np.where(ranks >= threshold)[0]
-        preds = set(hit_ids[pred_idxs])
-        true_positives = targets.intersection(preds)
-
-        precision = len(true_positives) / (len(preds) + 1e-6)
-        recall = len(true_positives) / len(targets)
-        f1 = (2 * precision * recall) / (precision + recall + 1e-6)
-
-        precisions.append(precision)
-        recalls.append(recall)
-        f1s.append(f1)
-        
-    return precisions, recalls, f1s
-
-
-def prf1_curves_of_hit_list(tgt_feats, feats, ranking_metric, ranking_metric_name, results_container):
-    """Get cumulative precision, recall and F1 curves for a list of hits,
-      which we order by (descending) ranking_metric
+def prf1_curves_of_ranked_list(tgt_feats, feats, ranking_metric, metric_name, results_container):
+    """Get cumulative precision, recall and F1 curves for a list of ranked hits (desc order)
     
     :param tgt_feats: indices of causal features
     :param feats: indices of features we have ranks for
@@ -108,64 +33,100 @@ def prf1_curves_of_hit_list(tgt_feats, feats, ranking_metric, ranking_metric_nam
         recall = len(true_positives) / len(tgt_feats)
         f1 = 2 * (precision * recall) / (precision + recall + 1e-6)
 
-        results_container[f"{ranking_metric_name}_precision"].append(precision)
-        results_container[f"{ranking_metric_name}_recall"].append(recall)
-        results_container[f"{ranking_metric_name}_F1"].append(f1)
+        results_container[f"{metric_name}_precision"].append(precision)
+        results_container[f"{metric_name}_recall"].append(recall)
+        results_container[f"{metric_name}_F1"].append(f1)
 
 
-def plot_all_prf1_curves(conf, pr_curve_dict, max_len=None):
+def plot_all_prf1_curves(save_dir, method_names, pr_curve_dict, max_len=None):
+    """Plot precision, recall and F1 curves for all methods
+    
+    :param save_dir: directory to save plots
+    :param method_names: list of method names
+    :param pr_curve_dict: dictionary of precision, recall and F1 curves for each method
+    :param max_len: maximum length of the curves to plot (default: plot everything)
+    :return: None, plots are saved to save_dir
+    """
 
-    _, ranking_metric_names, colors, linestyles, markers = get_metric_plot_info()
-
-    fig, axs = subplots(1, 3, f"{conf.method_name} trade-off curves", "list length", height=8)
+    fig, axs = subplots(1, 3, f"precision/recall curves", "list length", height=8)
     for ax, mtype in zip(axs, ["precision", "recall", "F1"]):
         ax.set_ylabel(mtype)
-        for metric_name, c, ls, m in zip(ranking_metric_names, colors, linestyles, markers):
-
-            yvals = np.array(pr_curve_dict[metric_name + "_" + mtype])
+        for k, v in pr_curve_dict.items():
+            if mtype not in k: continue
+            yvals = np.array(v)
             if max_len: yvals = yvals[:max_len]
             if yvals.size == 0: yvals = np.array([0.])
-
-            ax.plot(yvals, label=metric_name, c=c, linestyle=ls, marker=m, 
+            ax.plot(yvals, label=" ".join(k.split("_")[:-1]), 
                     alpha=0.8, linewidth=1.5, markevery=max(1, len(yvals)//10))
 
         handles, labels = ax.get_legend_handles_labels()
         fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 0.94),
-                   fancybox=True, shadow=True, ncol=len(ranking_metric_names), fontsize=8)
+                   fancybox=True, shadow=True, ncol=len(method_names)*2, fontsize=8)
         
-    name = f"{conf.method_name}_prf1_curves_"
+    name = f"prf1_curves_"
     if max_len: name += str(max_len)
-    save_fig(fig, f"{conf.save_dir}/", name)
+    save_fig(fig, f"{save_dir}/", name)
     
 
-def plot_causal_cf_curves(conf, tgt_feats, pr_curve_dict, max_len=None):
+def plot_causal_cf_curves(save_dir, method_names, tgt_feats, pr_curve_dict, max_len=None):
+    """Plot a 'checked-and-found' which contains the necessary info to compute precision+recall for any list length
+    
+    :param save_dir: directory to save plots
+    :param method_names: list of method names
+    :param tgt_feats: causal variants/features
+    :param pr_curve_dict: dictionary of precision, recall and F1 curves for each method
+    :param max_len: maximum length of the curves to plot (default: plot everything)
+    :return: None, plots are saved to save_dir
+    """
 
-    _, ranking_metric_names, colors, linestyles, markers = get_metric_plot_info()
-
-    fig, ax = plot(f"{conf.dname} CF curves", "# variants checked", "# causal variants found", figsize=(10, 6))
+    fig, ax = plot(f"CF curves", "# variants checked", "# causal variants found", figsize=(10, 6))
     ax.set_ylim(0, len(tgt_feats)+1)
 
-    for metric_name, c, ls, m in zip(ranking_metric_names, colors, linestyles, markers):
-
-        yvals = np.array(pr_curve_dict[metric_name + "_" + "recall"]) * len(tgt_feats)
+    for k, v in pr_curve_dict.items():
+        if "recall" not in k:
+            continue
+        yvals = np.array(v) * len(tgt_feats)
+        # print("num_causal feats:", len(tgt_feats))  # TODO
+        # print("max recall:", np.array(v)[-1])
         if yvals.size == 0: yvals = np.array([0.])
         if max_len: yvals = yvals[:max_len]
-
-        ax.plot(yvals, label=metric_name, c=c, linestyle=ls, marker=m, 
+        ax.plot(yvals, label=" ".join(k.split("_")[:-1]), 
                 alpha=0.8, linewidth=1.5, markevery=max(1, len(yvals)//10))
 
     handles, labels = ax.get_legend_handles_labels()
     fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 0.94),
-                fancybox=True, shadow=True, ncol=len(ranking_metric_names)+1, fontsize=8)
+               fancybox=True, shadow=True, ncol=len(method_names)*2, fontsize=8)
     
-    name = f"{conf.method_name}_checked_and_found_curves_"
+    name = f"checked_and_found_curves_"
     if max_len: name += str(max_len)
-    save_fig(fig, f"{conf.save_dir}/", name)
+    save_fig(fig, f"{save_dir}/", name)
 
 
-def plot_gene_scatter_summaries(all_dfs, method_names, good_genes, bad_genes, save_dir,
-                                x_metric=("mean", np.mean), y_metric=("max", "max"), 
-                                plot_name="", num_genes_label=40, lmm_pval=False):
+def plot_gene_scatter_summaries(all_dfs,
+                                method_names, 
+                                good_genes, 
+                                bad_genes, 
+                                save_dir,
+                                x_metric=("mean", np.mean), 
+                                y_metric=("max", "max"), 
+                                plot_name="", 
+                                num_genes_label=40, 
+                                lmm_pval=False
+                                ):
+    """Plot scatter plots of gene-level metrics
+    
+    :param all_dfs: list of dataframes, one for each method
+    :param method_names: list of method names
+    :param good_genes: list of genes to include in the plot
+    :param bad_genes: list of genes to exclude from the plot
+    :param save_dir: directory to save plots
+    :param x_metric: metric to use on the x-axis (default: mean)
+    :param y_metric: metric to use on the y-axis (default: max)
+    :param plot_name: name of the plot (default: "")
+    :param num_genes_label: number of genes to label on the plot (default: 40)
+    :param lmm_pval: whether to use lmm-adjusted p-values (default: False)
+    :return: None, plots are saved to save_dir
+    """
 
     n_plots = 2 * len(method_names)  # coefs and pvals for each method
     num_cols = 2
@@ -175,6 +136,9 @@ def plot_gene_scatter_summaries(all_dfs, method_names, good_genes, bad_genes, sa
     all_figtext = []
     for i in range(num_rows):
         df = all_dfs[i]
+        if 'gene' not in df.columns:
+            continue
+
         # remove any genes I am not interested in
         for g in bad_genes:
             df = df[df['gene'] != g]
@@ -232,19 +196,20 @@ def plot_gene_scatter_summaries(all_dfs, method_names, good_genes, bad_genes, sa
     
     plt.subplots_adjust(wspace=0.35, hspace=0.25)
 
-    try:
-        from adjustText import adjust_text
-        print("Adjusting annotations for readability...")
-        for a, ax in zip(all_figtext, axs.flat):
-            adjust_text(a, ax=ax, arrowprops=dict(arrowstyle="-", color='k', lw=0.5))
-        print("done!")
-    except ImportError:
-        print("WARNING: text annotations on gene summary figure may be hard to read -" \
-              "please install the adjustText package to ameliorate this")
-        pass
+    if all_figtext:
+        try:
+            from adjustText import adjust_text
+            print("Adjusting annotations for readability...")
+            for a, ax in zip(all_figtext, axs.flat):
+                adjust_text(a, ax=ax, arrowprops=dict(arrowstyle="-", color='k', lw=0.5))
+            print("done!")
+        except ImportError:
+            print("WARNING: text annotations on gene summary figure may be hard to read -" \
+                "please install the adjustText package to ameliorate this")
+            pass
 
-    name = f"{plot_name}_gene_summaries_v1"
-    save_fig(fig, f"{save_dir}/", name)
+        name = f"{plot_name}_gene_summaries"
+        save_fig(fig, f"{save_dir}/", name)
 
 
 def plot_gene_cf_curves(annotated_ranked_hits, max_list_len=None, plot_name="", 
@@ -288,31 +253,35 @@ def plot_gene_cf_curves(annotated_ranked_hits, max_list_len=None, plot_name="",
     save_fig(fig, f"{save_dir}/", name)
 
 
-def eval_causal_groundtruth(conf, tgt_feats, vars_df):
+def eval_hits_against_vars_of_interest(tgt_feats, var_files, var_dfs, method_names, use_adjusted_pval, save_dir):
     """For various ranking-metrics we construct a ranked lists of features and then compute 
         the precision/recall/F1 of the topk hits, for all values of k in [1, len(ranked_list)]
 
-    :param conf: dict, configuration object
-    :param tgt_feats: np.ndarray containing indices of causal features
-    :param feats_df: pd.DataFrame 
+    :param tgt_feats: list of target variants
+    :param var_files: list of files containing pyseer hits
+    :param var_dfs: list of dataframes containing pyseer hits
+    :param method_names: list of method names corresponding to the ranked lists
+    :param use_adjusted_pval: whether to use the adjusted p-values or not
+    :param save_dir: directory to save the results
     """
-    # TODO: need to rewrite to account for a list of vars_dfs
-    raise NotImplemented
-    df_cols, ranking_metric_names = get_metric_plot_info()[:2]
-    ranking_metrics = [vars_df[col] for col in df_cols]
-    
+
     # compute precision/recall/F1 curves for each metric and store the results in a `pr_curve_dict`
     pr_curve_dict = defaultdict(list)
-    for metric, name in zip(ranking_metrics, ranking_metric_names):
-        prf1_curves_of_hit_list(tgt_feats, vars_df.index, metric, name, pr_curve_dict)
+    pval_type = '-logpval (lmm-adjusted)' if use_adjusted_pval else '-logpval (unadjusted)'
+    for col in ['absbeta', pval_type]:
+        for var_file, df, name in zip(var_files, var_dfs, method_names):
+            name += f"_{col}"
+            prf1_curves_of_ranked_list(tgt_feats, df['variant'].values, df[col], name, pr_curve_dict)
 
-    plot_all_prf1_curves(conf, pr_curve_dict, max_len=len(tgt_feats)*10)
-    plot_all_prf1_curves(conf, pr_curve_dict, max_len=len(vars_df))
+            prf = np.array([pr_curve_dict[name + "_precision"], pr_curve_dict[name + "_recall"], pr_curve_dict[name + "_F1"]]).T
+            prf_df = pd.DataFrame(prf, columns=["precision", "recall", "F1"])
+            prf_df.to_csv(os.path.join(os.path.dirname(var_file), f"{col}_precision_recall_f1.tsv"), sep='\t')
 
-    plot_causal_cf_curves(conf, tgt_feats, pr_curve_dict, max_len=len(tgt_feats)*3)
-    plot_causal_cf_curves(conf, tgt_feats, pr_curve_dict, max_len=len(tgt_feats)*10)
-    plot_causal_cf_curves(conf, tgt_feats, pr_curve_dict, max_len=len(tgt_feats)*30)
-    plot_causal_cf_curves(conf, tgt_feats, pr_curve_dict, max_len=len(vars_df))
+    plot_all_prf1_curves(save_dir, method_names, pr_curve_dict, max_len=len(tgt_feats)*5)  # zoomed in
+    plot_all_prf1_curves(save_dir, method_names, pr_curve_dict, max_len=len(df))  # zoomed out
+
+    plot_causal_cf_curves(save_dir, method_names, tgt_feats, pr_curve_dict, max_len=len(tgt_feats)*5)  # zoomed in
+    plot_causal_cf_curves(save_dir, method_names, tgt_feats, pr_curve_dict, max_len=len(df))  # zoomed out
 
 
 def parse_ggcaller_xls(annotation_file, group_mge=False, group_hypothetical=False, use_function=False):
@@ -393,31 +362,57 @@ def parse_ggcaller_query(fasta, delim="_", position=-1):
 
 def parse_pyseer_hits(var_file):
     """Load a dataframe of pyseer hits, transforming the pvals and betas so that they can be used to rank hits"""
-    try:
-        df = pd.read_csv(var_file, sep='\t', usecols=['variant', 'af', 'filter-pvalue', 'lrt-pvalue', 'beta', 'beta_idx'])
-        df['beta'] = df['beta'].apply(np.abs)
-        df['filter-pvalue'] = df['filter-pvalue'].apply(lambda x: -np.log(np.maximum(x, np.e**-700))/np.log(10))
-        df['lrt-pvalue'] = df['lrt-pvalue'].apply(lambda x: -np.log(np.maximum(x, np.e**-700))/np.log(10))
-        df = df.rename(columns={'beta': 'absbeta', 'filter-pvalue': '-logpval (unadjusted)', 'lrt-pvalue': '-logpval (lmm-adjusted)'})
-    except:
-        df = pd.read_csv(var_file, sep='\t', usecols=['variant', 'af', '-logpval (unadjusted)', '-logpval (lmm-adjusted)', 'absbeta', 'notes'])
+    with open(var_file, 'r') as f:
+        headers = f.readline().strip().split('\t')
+
+    cols = ['variant', 'af', 'filter-pvalue', 'lrt-pvalue', 'beta']
+    if 'beta_idx' in headers:
+        cols.append('beta_idx')
+
+    df = pd.read_csv(var_file, sep='\t', usecols=cols)
+    df['beta'] = df['beta'].apply(np.abs)
+    df['filter-pvalue'] = df['filter-pvalue'].apply(lambda x: -np.log(np.maximum(x, np.e**-700))/np.log(10))
+    df['lrt-pvalue'] = df['lrt-pvalue'].apply(lambda x: -np.log(np.maximum(x, np.e**-700))/np.log(10))
+    df = df.rename(columns={'beta': 'absbeta', 'filter-pvalue': '-logpval (unadjusted)', 'lrt-pvalue': '-logpval (lmm-adjusted)'})
     
     return df
 
 
-def get_annotated_variants(var_types, var_files, annotation_files, ggcaller_xls=None, exclude_unmapped=False):
-    """Return a dataframe of the form pd.DataFrame(['variant', 'gene', 'absbeta', '-logpval'])"""
+def get_annotated_variants(var_types, var_files, annotation_files, ggcaller_xls=None,
+                            exclude_unmapped=False, genes_of_interest=None):
+    """Return a dataframe of the form pd.DataFrame(['variant', 'absbeta', '-logpval', 'gene'])
+    
+    Parameters
+    ----------
+    var_types : list of str
+        The type of variant. Must be one of ['vcf', 'kmers']
+    var_files : list of str
+        The path to the file containing the variants identified by pyseer
+    annotation_files : list of str
+        The path to the file containing an annotation file (e.g. gff or matched_queries.fasta from ggcaller)
+    ggcaller_xls : str
+        The path to the tsv mapping a gene identifier to gene name (e.g 'CLS0342' to 'pbp2x')
+    exclude_unmapped : bool
+        Whether to exclude variants that could not be mapped to a gene
+    genes_of_interest : list of str
+        A list of genes for which we output a separate tsv file containing any hits found there
+    """
 
     all_dfs = []
     for var_type, var_file, anno_file in zip(var_types, var_files, annotation_files):
+        
+        pyseer_hits = parse_pyseer_hits(var_file)
 
-        var_to_cogs = pd.DataFrame(columns=['variant', 'gene'])
+        if not anno_file:
+            var_df = pyseer_hits
 
-        if var_type == "snps":
-            # TODO! pyseer labels snps as:
+        elif var_type == "vcf":
+            assert anno_file.endswith('.gff'), \
+                f"Expected a .gff annotation file to accompany a vcf file, but got: {anno_file}"
+            
+            # extract position from var_name and search gff annotation file for gene name
             # var_name = "_".join([variant.contig, str(variant.pos)] + [str(allele) for allele in variant.alleles])
-            # extract position and search gff annotation file for gene name
-            raise NotImplementedError
+            raise NotImplementedError("vcf-based variants not available yet.")
         
         elif var_type == "kmers":
             
@@ -427,7 +422,6 @@ def get_annotated_variants(var_types, var_files, annotation_files, ggcaller_xls=
                     Presuming .fasta annotation file was generated by ggcaller, and require a compatible spreadsheet specified \
                     via --ggcaller_xls (see https://github.com/samhorsfield96/ggCaller_manuscript#pangenome-wide-association-study-pgwas)"
                 
-                pyseer_hits = parse_pyseer_hits(var_file)
                 var_to_cogs = parse_ggcaller_query(anno_file)
                 cog_to_genename = parse_ggcaller_xls(ggcaller_xls)
 
@@ -453,104 +447,78 @@ def get_annotated_variants(var_types, var_files, annotation_files, ggcaller_xls=
             
             else:
                 raise ValueError(f"Expected .fasta or .gff annoation file, but got {anno_file}")
-        
         else:
-            raise ValueError("Expected --var_types to contain 'snps' or 'kmers', but got ", var_type)
+            raise ValueError("Expected --var_types to contain 'vcf' or 'kmers', but got ", var_type)
         
-        # TODO: run some basic sanity checks on var_df
+        if anno_file:
+            varfile_dir = os.path.dirname(var_file)
+            var_df.to_csv(os.path.join(varfile_dir, "annotated_hits.tsv"), sep='\t')
+            if genes_of_interest:
+                for g in genes_of_interest:
+                    subdf = var_df[var_df['gene'] == g].reset_index(drop=True)
+                    subdf.drop(columns=['gene'], inplace=True)
+                    subdf.to_csv(os.path.join(varfile_dir, f"annotated_hits_{g}.tsv"), sep='\t', index=0)
         
         all_dfs.append(var_df)
 
     return all_dfs
 
 
-def get_metric_plot_info(version=3):
-    # TODO: make these command line options (along with a list of vcfs/kmers)
-    if version == 1:
-        metric_names = ["abscoef", "log_pval", "enet_abscoef", "enet_log_pval", "MDS_inclusion_rate", "ss", "abscoef_ss"]
-        plotting_names = ["Lasso |beta|", "Lasso + pval", "Enet |beta|", "Enet + pval", "MDS", "SS", "SS |beta|"]
-        colors = ['gray', 'black', 'salmon', 'red', "deepskyblue", 'springgreen', 'wheat']
-        linestyles = ['--'] * 4 + ['-'] * 3
-        markers = ['.']*2 + ["*"]*2 + ["+", "^", "d"]
-
-    elif version == 2:
-        metric_names = ["enet_abscoef", "enet_abscoef_se1", "enet_abscoef_se2", "enet_abscoef_se3",
-                        "abscoef_ss", "abscoef_se1_ss",  "abscoef_se2_ss", "abscoef_se3_ss"]
-        plotting_names = ["Enet |beta|", "Enet se1 |beta|", "Enet se2 |beta|", "Enet se3 |beta|", 
-                          "SS |beta|", "SS se1 |beta|", "SS se2 |beta|", "SS se3 |beta|"]             
-        colors = ['red', "deepskyblue", 'springgreen', 'wheat']*2
-        linestyles = ['-'] * 4 + ['--'] * 4
-        markers = ["*", "+", "^", "d"]*2
-
-    elif version == 3:
-        metric_names = ["enet_abscoef", "enet_abscoef_se1", "enet_abscoef_se2", "enet_abscoef_se3", "enet_nonorm_abscoef", 
-                        "enet_nonorm_abscoef_se1", "enet_nonorm_abscoef_se2",  "enet_nonorm_abscoef_se3"]
-        plotting_names = ["Enet |beta|", "Enet se1 |beta|", "Enet se2 |beta|", "Enet se3 |beta|", "~normEnet |beta|", 
-                          "~normEnet se1 |beta|", "~normEnet se2 |beta|", "~normEnet se3 |beta|"]             
-        colors = ['red', "deepskyblue", 'springgreen', 'wheat']*2
-        linestyles = ['-'] * 4 + ['--'] * 4
-        markers = ["*", "+", "^", "d"]*2
-    else:
-        raise ValueError("must specify valid numeric version as input to this function")
-
-    assert len(plotting_names) == len(colors) == len(linestyles) == len(metric_names), \
-        "expected these lists to be of same length"
-    
-    return metric_names, plotting_names, colors, linestyles, markers
-
-
-
 def parse_args():
     """load & augment experiment configuration"""
     parser = ArgumentParser(description='Train model.', formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--out', type=str, default=os.getcwd(), help="directory to save output figures'")
-    parser.add_argument('--var_types', nargs='+', default=[], help="list whose elements should be either 'snps' or 'kmers'")
-    parser.add_argument('--var_files', nargs='+', default=[], help="list of file names containing pyseer outputs")
-    parser.add_argument('--annotation_files', nargs='+', default=[], help="list of file names containing annotation files")
-    parser.add_argument('--method_names', nargs='+', default=[], help="list of method names")
-    parser.add_argument('--genes_of_interest', nargs='+', default=[], help="list of genes")
-    parser.add_argument('--genes_not_of_interest', nargs='+', default=[], help="list of genes to ignore")
-    parser.add_argument('--causal_vars', nargs='+', default=[], help="list of causal vars (for simulated phenotypes)")
-    parser.add_argument('--ggcaller_xls', type=str, default=os.getcwd(), help="directory to save output figures'")
-    parser.add_argument('--num_genes_label', type=int, default=40, help="number of genes in scatter plot to label'")
-    parser.add_argument('--exclude_unmapped', action='store_true', default=False, help='Exclude variants that are not mapped to a gene')
-    parser.add_argument('--use_lmm_pval', action='store_true', default=False, help='Use the lmm-adjusted pvalue generated by pyseer')
-    # parser.add_argument('--pvalue_type', type=str, default="un", help="directory to save output figures'")
+    parser.add_argument('--out', type=str, default=os.getcwd(), 
+                        help="directory to save output figures'")
+    parser.add_argument('--var_types', nargs='+', default=[],
+                        help="list whose elements should be either 'vcf' or 'kmers'")
+    parser.add_argument('--var_files', nargs='+', default=[], 
+                        help="list of file names containing pyseer outputs")
+    parser.add_argument('--annotation_files', nargs='+', default=[],
+                         help="list of file names containing annotation files")
+    parser.add_argument('--method_names', nargs='+', default=[], 
+                        help="list of method names")
+    parser.add_argument('--genes_of_interest', nargs='+', default=[], 
+                        help="list of genes")
+    parser.add_argument('--genes_not_of_interest', nargs='+', default=[],
+                         help="list of genes to ignore")
+    parser.add_argument('--variants_of_interest', type=str, default="", 
+                        help="file of new-line separated variant names (e.g. ground-truth causal variants in a simulation)")
+    parser.add_argument('--ggcaller_xls', type=str, default="", 
+                        help="directory containing spreadsheet for ggcaller")
+    parser.add_argument('--num_genes_label', type=int, default=50,
+                         help="number of genes in scatter plot to label'")
+    parser.add_argument('--exclude_unmapped', action='store_true', default=False, 
+                        help='Exclude variants that are not mapped to a gene')
+    parser.add_argument('--use_lmm_pval', action='store_true', default=False,
+                         help='Use the adjusted pvalue generated by pyseer')
 
     return parser.parse_args()
 
 
-def main():
+def main(options=None):
     np.set_printoptions(precision=3)
-    options = parse_args()
+    if not options:
+        options = parse_args()
+    assert len(options.var_types) == len(options.var_files) == len(options.annotation_files) == len(options.method_names), \
+        "--var_types, --var_files, --annotation_files, and --method_names must all be the same length, but " \
+        "got {} {} {} {}".format(len(options.var_types), len(options.var_files), len(options.annotation_files), len(options.method_names))
+
     save_dir = options.out
     genes_of_interest = options.genes_of_interest
 
-    # list of dataframes of form pd.DataFrame(['variant', 'gene', 'absbeta', '-logpval'])
+    # list of dataframes
     var_dfs = get_annotated_variants(options.var_types, options.var_files, options.annotation_files,
                                       options.ggcaller_xls, options.exclude_unmapped)
 
-    # save annotated tables in same location as original variant file
-    for df, varfile in zip(var_dfs, options.var_files):
-        varfile_dir = os.path.dirname(varfile)
-        df.to_csv(os.path.join(varfile_dir, "annotated_hits.tsv"), sep='\t')
-        if genes_of_interest:
-            for g in genes_of_interest:
-                subdf = df[df['gene'] == g].reset_index(drop=True)
-                subdf.drop(columns=['gene'], inplace=True)
-                subdf.to_csv(os.path.join(varfile_dir, f"annotated_hits_{g}.tsv"), sep='\t', index=0)
-
-    # eval ranking for synthetic dataset e.g 'bacgwasim' dataset or real-genotype + simulated-phenotype
-    if options.causal_vars:
-        eval_causal_groundtruth(options, options.causal_vars, var_dfs)
+    # how well do pyseer hits recover certain variants? useful for e.g bacgwasim or real-genotype + simulated-phenotype
+    if options.variants_of_interest:
+        vars_of_interest = pd.read_csv(options.variants_of_interest, header=None, sep='\t').values.flatten()
+        eval_hits_against_vars_of_interest(vars_of_interest, options.var_files, var_dfs,
+                                           options.method_names, options.use_lmm_pval, save_dir)
     
     # make scatter plots for each ranking metric, grouping variants by gene
     plot_gene_scatter_summaries(var_dfs, options.method_names, genes_of_interest,
                                 options.genes_not_of_interest, save_dir, plot_name="avg_vs_max",
-                                num_genes_label=options.num_genes_label, lmm_pval=options.use_lmm_pval)
-    plot_gene_scatter_summaries(var_dfs, options.method_names, genes_of_interest,
-                                options.genes_not_of_interest, save_dir, x_metric=("mean", np.mean), 
-                                y_metric=("count", len), plot_name="avg_vs_len",
                                 num_genes_label=options.num_genes_label, lmm_pval=options.use_lmm_pval)
 
     # plot checked-and-found (CF) curves for genes of interest at different zoom-levels
